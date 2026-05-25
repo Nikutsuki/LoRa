@@ -153,6 +153,7 @@ target_link_libraries(pico_lora_sx1262 INTERFACE pico_loramac_node)
 # pico_enable_stdio_uart(pico_lora_sx1262 0)
 
 add_subdirectory("examples/pico-ping-pong")
+add_subdirectory("examples/pico-hw-test")
 # add_subdirectory("examples/default_dev_eui")
 # add_subdirectory("examples/hello_abp")
 # add_subdirectory("examples/hello_otaa")
