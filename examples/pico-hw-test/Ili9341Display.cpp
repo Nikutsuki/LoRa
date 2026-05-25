@@ -60,14 +60,23 @@ void Ili9341Display::fillRect(uint16_t x, uint16_t y, uint16_t width, uint16_t h
         height = config_.height - y;
     }
 
-    uint8_t pixel[2] = { static_cast<uint8_t>(color >> 8), static_cast<uint8_t>(color) };
     setWindow(x, y, x + width - 1, y + height - 1);
     chipSelect(false);
     dataCommand(true);
-    for (uint32_t i = 0; i < static_cast<uint32_t>(width) * height; i++) {
-        spi_write_blocking(config_.spi, pixel, sizeof(pixel));
-    }
+    writeColorRun(color, static_cast<uint32_t>(width) * height);
     chipSelect(true);
+}
+
+void Ili9341Display::drawRect(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t color)
+{
+    if (width == 0 || height == 0) {
+        return;
+    }
+
+    fillRect(x, y, width, 1, color);
+    fillRect(x, static_cast<uint16_t>(y + height - 1), width, 1, color);
+    fillRect(x, y, 1, height, color);
+    fillRect(static_cast<uint16_t>(x + width - 1), y, 1, height, color);
 }
 
 void Ili9341Display::drawText(uint16_t x, uint16_t y, const char *text, uint16_t foreground, uint16_t background, uint8_t scale)
@@ -135,6 +144,21 @@ void Ili9341Display::writeData(const uint8_t *data, size_t length)
 void Ili9341Display::writeData(uint8_t value)
 {
     writeData(&value, 1);
+}
+
+void Ili9341Display::writeColorRun(uint16_t color, uint32_t count)
+{
+    uint8_t bytes[64];
+    for (size_t i = 0; i < sizeof(bytes); i += 2) {
+        bytes[i] = static_cast<uint8_t>(color >> 8);
+        bytes[i + 1] = static_cast<uint8_t>(color);
+    }
+
+    while (count > 0) {
+        uint32_t pixels = count > 32 ? 32 : count;
+        spi_write_blocking(config_.spi, bytes, pixels * 2);
+        count -= pixels;
+    }
 }
 
 void Ili9341Display::setWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)

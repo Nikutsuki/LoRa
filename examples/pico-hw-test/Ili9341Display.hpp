@@ -28,11 +28,15 @@ public:
     static constexpr uint16_t Yellow = 0xFFE0;
     static constexpr uint16_t Red = 0xF800;
     static constexpr uint16_t Gray = 0x8410;
+    static constexpr uint16_t DarkGray = 0x2104;
+    static constexpr uint16_t Blue = 0x025F;
+    static constexpr uint16_t Navy = 0x0010;
 
     explicit Ili9341Display(Config config);
 
     void init();
     void fillRect(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t color);
+    void drawRect(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t color);
     void drawText(uint16_t x, uint16_t y, const char *text, uint16_t foreground, uint16_t background, uint8_t scale);
     void clearLine(uint16_t y, uint16_t height);
 
@@ -52,6 +56,7 @@ private:
     void writeCommand(uint8_t command);
     void writeData(const uint8_t *data, size_t length);
     void writeData(uint8_t value);
+    void writeColorRun(uint16_t color, uint32_t count);
     void setWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
     void drawChar(uint16_t x, uint16_t y, char value, uint16_t foreground, uint16_t background, uint8_t scale);
 

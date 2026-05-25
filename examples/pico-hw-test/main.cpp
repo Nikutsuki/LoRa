@@ -2,7 +2,7 @@
 
 int main()
 {
-    HardwareTestApp app;
+    static HardwareTestApp app;
     app.run();
     return 0;
 }
