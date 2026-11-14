@@ -58,20 +58,6 @@ bool ScreenModel::fullRedraw() const
 
 namespace {
 
-bool textEquals(const char *a, const char *b)
-{
-    // Treat null and empty as equivalent: components default to "" but callers
-    // may legitimately pass nullptr.
-    const char *left = a != nullptr ? a : "";
-    const char *right = b != nullptr ? b : "";
-
-    while (*left != '\0' && *left == *right) {
-        left++;
-        right++;
-    }
-    return *left == *right;
-}
-
 bool sameView(const ComponentView &a, const ComponentView &b)
 {
     return a.kind == b.kind &&
@@ -84,8 +70,8 @@ bool sameView(const ComponentView &a, const ComponentView &b)
            a.focused == b.focused &&
            a.selected == b.selected &&
            a.focusable == b.focusable &&
-           textEquals(a.primary, b.primary) &&
-           textEquals(a.secondary, b.secondary);
+           std::strcmp(a.primary, b.primary) == 0 &&
+           std::strcmp(a.secondary, b.secondary) == 0;
 }
 
 }

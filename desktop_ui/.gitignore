@@ -1,0 +1,15 @@
+# Binaries and build artifacts
+lora-tui
+lora-tui.exe
+*.exe
+result
+result-*
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+
+lora_storage.json
+*.json.tmp
