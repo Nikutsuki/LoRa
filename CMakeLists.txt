@@ -12,149 +12,118 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico CACHE STRING "Board type")
-
 cmake_minimum_required(VERSION 3.12)
 
-# initialize pico_sdk from GIT
-# (note this can come from environment, CMake cache etc)
-# set(PICO_SDK_FETCH_FROM_GIT on)
+set(PICO_BOARD pico CACHE STRING "Board type")
 
-# pico_sdk_import.cmake is a single file copied from this SDK
-# note: this must happen before project()
+# pico_sdk_import.cmake is a single file copied from this SDK.
+# Note: this must happen before project().
 include(pico_sdk_import.cmake)
 
-project(pico_lora_sx1262)
+project(pico_lora_sx1262 CXX C ASM)
 
-# initialize the Pico SDK
 pico_sdk_init()
 
 set(LORAMAC_NODE_PATH ${CMAKE_CURRENT_LIST_DIR}/lib/LoRaMac-node)
 
+# ------------------------------------------------------------------------------------
+# Semtech LoRaMac-node: SX126x radio driver only.
+#
+# Upstream is a full LoRaWAN stack of roughly 1600 files. Only the driver and the
+# system shims it needs are vendored here, so this is a point-to-point radio
+# rather than a MAC layer. The source list below is the complete transitive
+# closure of what those files include; extend it if you enable more of upstream.
+# ------------------------------------------------------------------------------------
 add_library(pico_loramac_node INTERFACE)
 
 target_sources(pico_loramac_node INTERFACE
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common/CayenneLpp.c
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common/cli.c
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common/LmHandlerMsgDisplay.c
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common/NvmDataMgmt.c
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common/LmHandler/LmHandler.c
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common/LmHandler/packages/FragDecoder.c
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common/LmHandler/packages/LmhpClockSync.c
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common/LmHandler/packages/LmhpCompliance.c
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common/LmHandler/packages/LmhpFragmentation.c
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common/LmHandler/packages/LmhpRemoteMcastSetup.c
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common/NvmDataMgmt.c
-
     ${LORAMAC_NODE_PATH}/src/boards/mcu/utilities.c
 
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common/NvmDataMgmt.c
-
-    # ${LORAMAC_NODE_PATH}/src/mac/region/Region.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionAS923.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionAU915.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionBaseUS.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionCN470.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionCN470A20.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionCN470A26.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionCN470B20.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionCN470B26.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionCN779.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionCommon.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionEU433.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionEU868.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionIN865.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionKR920.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionRU864.c
-    # ${LORAMAC_NODE_PATH}/src/mac/region/RegionUS915.c
-    # ${LORAMAC_NODE_PATH}/src/mac/LoRaMac.c
-    # ${LORAMAC_NODE_PATH}/src/mac/LoRaMacAdr.c
-    # ${LORAMAC_NODE_PATH}/src/mac/LoRaMacClassB.c
-    # ${LORAMAC_NODE_PATH}/src/mac/LoRaMacCommands.c
-    # ${LORAMAC_NODE_PATH}/src/mac/LoRaMacConfirmQueue.c
-    # ${LORAMAC_NODE_PATH}/src/mac/LoRaMacCrypto.c
-    # ${LORAMAC_NODE_PATH}/src/mac/LoRaMacParser.c
-    # ${LORAMAC_NODE_PATH}/src/mac/LoRaMacSerializer.c
-
-    # ${LORAMAC_NODE_PATH}/src/peripherals/soft-se/aes.c
-    # ${LORAMAC_NODE_PATH}/src/peripherals/soft-se/cmac.c
-    # ${LORAMAC_NODE_PATH}/src/peripherals/soft-se/soft-se-hal.c
-    # ${LORAMAC_NODE_PATH}/src/peripherals/soft-se/soft-se.c
-    
     ${LORAMAC_NODE_PATH}/src/radio/sx126x/sx126x.c
     ${LORAMAC_NODE_PATH}/src/radio/sx126x/radio.c
-    # ${LORAMAC_NODE_PATH}/src/radio/sx1276/sx1276.c
 
     ${LORAMAC_NODE_PATH}/src/system/delay.c
+    ${LORAMAC_NODE_PATH}/src/system/fifo.c
     ${LORAMAC_NODE_PATH}/src/system/gpio.c
     ${LORAMAC_NODE_PATH}/src/system/nvmm.c
     ${LORAMAC_NODE_PATH}/src/system/systime.c
     ${LORAMAC_NODE_PATH}/src/system/timer.c
-    ${LORAMAC_NODE_PATH}/src/system/fifo.c
 
-    ${CMAKE_CURRENT_LIST_DIR}/src/board.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/delay-board.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/eeprom-board.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/gpio-board.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/rtc-board.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/spi-board.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/sx1262-board.c
-    # ${CMAKE_CURRENT_LIST_DIR}/src/boards/rp2040/sx1276-board.c
-
-
-    
-
+    # Board glue adapting the driver onto RP2040 peripherals.
+    ${CMAKE_CURRENT_LIST_DIR}/src/board/board.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/board/delay-board.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/board/eeprom-board.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/board/gpio-board.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/board/rtc-board.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/board/spi-board.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/board/sx1262-board.c
 )
 
 target_include_directories(pico_loramac_node INTERFACE
     ${LORAMAC_NODE_PATH}/src
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common/LmHandler
-    # ${LORAMAC_NODE_PATH}/src/apps/LoRaMac/common/LmHandler/packages
     ${LORAMAC_NODE_PATH}/src/boards
-    # ${LORAMAC_NODE_PATH}/src/mac
-    # ${LORAMAC_NODE_PATH}/src/mac/region
-    # ${LORAMAC_NODE_PATH}/src/peripherals/soft-se
     ${LORAMAC_NODE_PATH}/src/radio
     ${LORAMAC_NODE_PATH}/src/radio/sx126x
     ${LORAMAC_NODE_PATH}/src/system
-    ${LORAMAC_NODE_PATH}/src/peripherals
+    ${CMAKE_CURRENT_LIST_DIR}/src/board
 )
 
 target_link_libraries(pico_loramac_node INTERFACE pico_stdlib pico_unique_id hardware_spi)
 
-# target_compile_definitions(pico_loramac_node INTERFACE -DSOFT_SE)
-# target_compile_definitions(pico_loramac_node INTERFACE -DREGION_EU868)
-# target_compile_definitions(pico_loramac_node INTERFACE -DREGION_US915)
-# target_compile_definitions(pico_loramac_node INTERFACE -DREGION_CN779)
-# target_compile_definitions(pico_loramac_node INTERFACE -DREGION_EU433)
-# target_compile_definitions(pico_loramac_node INTERFACE -DREGION_AU915)
-# target_compile_definitions(pico_loramac_node INTERFACE -DREGION_AS923)
-# target_compile_definitions(pico_loramac_node INTERFACE -DREGION_CN470)
-# target_compile_definitions(pico_loramac_node INTERFACE -DREGION_KR920)
-# target_compile_definitions(pico_loramac_node INTERFACE -DREGION_IN865)
-# target_compile_definitions(pico_loramac_node INTERFACE -DREGION_RU864)
-# target_compile_definitions(pico_loramac_node INTERFACE -DACTIVE_REGION=LORAMAC_REGION_US915)
+# ------------------------------------------------------------------------------------
+# Application
+# ------------------------------------------------------------------------------------
+add_executable(pico_lora_messenger
+    src/main.cpp
+    src/HardwareTestApp.cpp
+    src/Ili9341Display.cpp
+    src/CardKbKeyboard.cpp
+    src/CryptoBox.cpp
+    src/InviteProtocol.cpp
+    src/ContactStore.cpp
+    src/ChatHistory.cpp
+    src/LoraMessenger.cpp
 
-add_library(pico_lora_sx1262 INTERFACE)
+    src/ui/Ui.cpp
+    src/ui/ScreenModel.cpp
+    src/ui/LcdScreen.cpp
 
-# target_sources(pico_lora_sx1262 INTERFACE
-#     ${CMAKE_CURRENT_LIST_DIR}/src/lorawan.c
-# )
+    src/protocol/Framing.cpp
+    src/protocol/Messages.cpp
+    src/protocol/LinkSession.cpp
+    src/protocol/UsbCdcTransport.cpp
+    src/protocol/UartTransport.cpp
 
-# target_include_directories(pico_lora_sx1262 INTERFACE
-#     ${CMAKE_CURRENT_LIST_DIR}/src/include
-# )
+    src/adapters/UartScreen.cpp
+    src/adapters/UartInput.cpp
+    src/adapters/CardKbInput.cpp
 
-target_link_libraries(pico_lora_sx1262 INTERFACE pico_loramac_node)
+    ${CMAKE_CURRENT_LIST_DIR}/lib/monocypher/monocypher.c
+)
 
-# enable usb output, disable uart output
-# pico_enable_stdio_usb(pico_lora_sx1262 1)
-# pico_enable_stdio_uart(pico_lora_sx1262 0)
+target_include_directories(pico_lora_messenger PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/src
+    ${CMAKE_CURRENT_LIST_DIR}/lib/font8x8
+    ${CMAKE_CURRENT_LIST_DIR}/lib/monocypher
+)
 
-add_subdirectory("examples/pico-ping-pong")
-add_subdirectory("examples/pico-hw-test")
-# add_subdirectory("examples/default_dev_eui")
-# add_subdirectory("examples/hello_abp")
-# add_subdirectory("examples/hello_otaa")
-# add_subdirectory("examples/otaa_temperature_led")
+target_compile_definitions(pico_lora_messenger PRIVATE
+    USE_MODEM_LORA
+    REGION_EU433
+)
+
+target_link_libraries(pico_lora_messenger
+    pico_loramac_node
+    hardware_i2c
+    hardware_flash
+    hardware_spi
+    hardware_uart
+    pico_stdlib
+)
+
+# The desktop UI talks to this firmware over the USB CDC port, so enable USB
+# stdio and leave the hardware UART for the optional link transport.
+pico_enable_stdio_usb(pico_lora_messenger 1)
+pico_enable_stdio_uart(pico_lora_messenger 0)
+
+pico_add_extra_outputs(pico_lora_messenger)
