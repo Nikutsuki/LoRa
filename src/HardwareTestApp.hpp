@@ -157,41 +157,46 @@ private:
      * so a shallow copy remains valid and comparison sees the current text.
      */
     ui::ScreenModel lastModel_{};
-    ui::HeaderBar headerBar_{{0, 0, 320, 22}, headerText_, headerRight_};
-    ui::TabStrip tabStrip_{{8, 26, 304, 14}, TabLabels, static_cast<size_t>(Page::Count), 0};
-    ui::Divider headerDivider_{{0, 44, 320, 1}};
-    ui::Label pageTitleLabel_{{8, 50, 304, 16}, pageTitle_, ui::Tone::Accent, 1};
-    ui::Label primaryLabel_{{8, 68, 304, 14}, contactLine_, ui::Tone::Accent, 1};
-    ui::Label secondaryLabel_{{8, 84, 304, 14}, contactMeta_, ui::Tone::Muted, 1};
+    ui::HeaderBar headerBar_{{0, 0, 320, 18}, headerText_, headerRight_};
+    ui::Divider headerDivider_{{0, 20, 320, 1}};
+    ui::Label pageTitleLabel_{{8, 24, 304, 10}, pageTitle_, ui::Tone::Accent, 1};
+    ui::Label primaryLabel_{{8, 36, 304, 10}, contactLine_, ui::Tone::Accent, 1};
+    ui::Label secondaryLabel_{{8, 48, 304, 10}, contactMeta_, ui::Tone::Muted, 1};
+
+    // 6 history rows stacked cleanly from y = 76 to y = 148 (12px pitch)
     ui::Label historyLabels_[VisibleHistoryRows] = {
-        ui::Label{{8, 68, 304, 14}, historyRows_[0], ui::Tone::Default, 1},
-        ui::Label{{8, 84, 304, 14}, historyRows_[1], ui::Tone::Default, 1},
-        ui::Label{{8, 100, 304, 14}, historyRows_[2], ui::Tone::Default, 1},
-        ui::Label{{8, 116, 304, 14}, historyRows_[3], ui::Tone::Default, 1},
-        ui::Label{{8, 132, 304, 14}, historyRows_[4], ui::Tone::Default, 1},
-        ui::Label{{8, 148, 304, 14}, historyRows_[5], ui::Tone::Default, 1},
+        ui::Label{{8, 76,  304, 11}, historyRows_[0], ui::Tone::Default, 1},
+        ui::Label{{8, 88,  304, 11}, historyRows_[1], ui::Tone::Default, 1},
+        ui::Label{{8, 100, 304, 11}, historyRows_[2], ui::Tone::Default, 1},
+        ui::Label{{8, 112, 304, 11}, historyRows_[3], ui::Tone::Default, 1},
+        ui::Label{{8, 124, 304, 11}, historyRows_[4], ui::Tone::Default, 1},
+        ui::Label{{8, 136, 304, 11}, historyRows_[5], ui::Tone::Default, 1},
     };
-    ui::TextBox inputBox_{{8, 168, 304, 26}, inputHint_};
+
+    // Input box: y = 152..178 (26px tall)
+    ui::TextBox inputBox_{{8, 152, 304, 26}, inputHint_};
     ui::ListItem contactItems_[4] = {
-        ui::ListItem{{8, 68, 304, 28}, contactPrimary_[0], contactSecondary_[0], false},
-        ui::ListItem{{8, 98, 304, 28}, contactPrimary_[1], contactSecondary_[1], false},
-        ui::ListItem{{8, 128, 304, 28}, contactPrimary_[2], contactSecondary_[2], false},
-        ui::ListItem{{8, 158, 304, 28}, contactPrimary_[3], contactSecondary_[3], false},
+        ui::ListItem{{8, 52, 304, 28}, contactPrimary_[0], contactSecondary_[0], false},
+        ui::ListItem{{8, 82, 304, 28}, contactPrimary_[1], contactSecondary_[1], false},
+        ui::ListItem{{8, 112, 304, 28}, contactPrimary_[2], contactSecondary_[2], false},
+        ui::ListItem{{8, 142, 304, 28}, contactPrimary_[3], contactSecondary_[3], false},
     };
-    ui::Label inviteDetailLabel_{{8, 68, 304, 40}, inviteMeta_, ui::Tone::Muted, 1};
-    ui::Label identityDetailLabel_{{8, 68, 304, 40}, identityMeta_, ui::Tone::Muted, 1};
+    ui::Label inviteDetailLabel_{{8, 64, 304, 40}, inviteMeta_, ui::Tone::Muted, 1};
+    ui::Label identityDetailLabel_{{8, 64, 304, 40}, identityMeta_, ui::Tone::Muted, 1};
 
-    ui::Button sendButton_{{8, 202, 72, 26}, "Send"};
-    ui::Button contactsButton_{{88, 202, 76, 26}, "Contacts"};
-    ui::Button inviteButton_{{172, 202, 68, 26}, "Invite"};
-    ui::Button identityButton_{{248, 202, 64, 26}, "ID"};
-    ui::Button selectButton_{{8, 202, 72, 26}, "Select"};
-    ui::Button nextButton_{{88, 202, 68, 26}, "Next"};
-    ui::Button backButton_{{248, 202, 64, 26}, "Back"};
-    ui::Button broadcastButton_{{8, 202, 88, 26}, "Broadcast"};
-    ui::Button acceptButton_{{104, 202, 76, 26}, "Accept"};
-    ui::Button setNickButton_{{8, 202, 76, 26}, "Set Nick"};
-    ui::Button seedButton_{{92, 202, 60, 26}, "Seed"};
+    // Bottom buttons: y = 184..210 (26px tall)
+    ui::Button sendButton_{{8, 184, 72, 26}, "Send"};
+    ui::Button contactsButton_{{88, 184, 76, 26}, "Contacts"};
+    ui::Button inviteButton_{{172, 184, 68, 26}, "Invite"};
+    ui::Button identityButton_{{248, 184, 64, 26}, "ID"};
+    ui::Button selectButton_{{8, 184, 72, 26}, "Select"};
+    ui::Button nextButton_{{88, 184, 68, 26}, "Next"};
+    ui::Button backButton_{{248, 184, 64, 26}, "Back"};
+    ui::Button broadcastButton_{{8, 184, 88, 26}, "Broadcast"};
+    ui::Button acceptButton_{{104, 184, 76, 26}, "Accept"};
+    ui::Button setNickButton_{{8, 184, 76, 26}, "Set Nick"};
+    ui::Button seedButton_{{92, 184, 60, 26}, "Seed"};
 
-    ui::StatusBar statusBar_{{0, 232, 320, 18}, notice_, ui::Tone::Muted};
+    // Status bar: y = 216..238 (fits cleanly inside 240px height)
+    ui::StatusBar statusBar_{{0, 216, 320, 22}, notice_, ui::Tone::Muted};
 };

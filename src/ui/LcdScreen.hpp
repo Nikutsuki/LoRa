@@ -20,6 +20,8 @@ private:
 
     Ili9341Display &display_;
     const Theme &theme_;
+    ScreenModel lastPresented_{};
+    bool hasPresented_ = false;
 };
 
 }

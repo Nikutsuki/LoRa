@@ -197,11 +197,50 @@ void Ili9341Display::drawChar(uint16_t x, uint16_t y, char value, uint16_t foreg
         value = '?';
     }
 
+    const uint16_t w = 8 * scale;
+    const uint16_t h = 8 * scale;
+    if (x >= config_.width || y >= config_.height) {
+        return;
+    }
+
+    // Stack buffer for up to scale=3 (24x24x2 = 1152 bytes); fall back if larger
+    uint8_t buffer[24 * 24 * 2];
+    if (scale > 3) {
+        // Fallback to existing per-pixel path for unusually large scales
+        for (uint8_t row = 0; row < 8; row++) {
+            uint8_t bits = static_cast<uint8_t>(font8x8_basic[static_cast<uint8_t>(value)][row]);
+            for (uint8_t col = 0; col < 8; col++) {
+                uint16_t color = ((bits >> col) & 0x01u) ? foreground : background;
+                fillRect(x + col * scale, y + row * scale, scale, scale, color);
+            }
+        }
+        return;
+    }
+
+    const uint8_t fgHi = static_cast<uint8_t>(foreground >> 8);
+    const uint8_t fgLo = static_cast<uint8_t>(foreground);
+    const uint8_t bgHi = static_cast<uint8_t>(background >> 8);
+    const uint8_t bgLo = static_cast<uint8_t>(background);
+
+    size_t idx = 0;
     for (uint8_t row = 0; row < 8; row++) {
         uint8_t bits = static_cast<uint8_t>(font8x8_basic[static_cast<uint8_t>(value)][row]);
-        for (uint8_t col = 0; col < 8; col++) {
-            uint16_t color = ((bits >> col) & 0x01u) ? foreground : background;
-            fillRect(x + col * scale, y + row * scale, scale, scale, color);
+        for (uint8_t sy = 0; sy < scale; sy++) {
+            for (uint8_t col = 0; col < 8; col++) {
+                bool set = ((bits >> col) & 0x01u) != 0;
+                uint8_t hi = set ? fgHi : bgHi;
+                uint8_t lo = set ? fgLo : bgLo;
+                for (uint8_t sx = 0; sx < scale; sx++) {
+                    buffer[idx++] = hi;
+                    buffer[idx++] = lo;
+                }
+            }
         }
     }
+
+    setWindow(x, y, x + w - 1, y + h - 1);
+    chipSelect(false);
+    dataCommand(true);
+    spi_write_blocking(config_.spi, buffer, idx);
+    chipSelect(true);
 }

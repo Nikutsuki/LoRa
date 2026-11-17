@@ -16,7 +16,7 @@ constexpr uint TftSck = 6;
 constexpr uint TftMosi = 7;
 constexpr uint TftDc = 8;
 constexpr uint TftReset = 9;
-constexpr uint8_t TftMadctlValue = 0x68;
+constexpr uint8_t TftMadctlValue = 0xA8;
 constexpr uint TftSpiBaud = 30000000u;
 constexpr uint16_t TftWidth = 320;
 constexpr uint16_t TftHeight = 240;
@@ -225,8 +225,6 @@ void HardwareTestApp::prepareCommon()
     headerBar_.setTitle(headerText_);
     headerBar_.setRight(headerRight_);
 
-    tabStrip_.setActive(static_cast<size_t>(page_));
-
     statusBar_.setText(notice_);
 }
 
@@ -287,7 +285,7 @@ void HardwareTestApp::prepareChatPage()
     inputBox_.setText(inputHint_);
 
     ui::Component *components[] = {
-        &headerBar_, &tabStrip_, &headerDivider_, &pageTitleLabel_, &primaryLabel_, &secondaryLabel_,
+        &headerBar_, &headerDivider_, &pageTitleLabel_, &primaryLabel_, &secondaryLabel_,
         &historyLabels_[0], &historyLabels_[1], &historyLabels_[2],
         &historyLabels_[3], &historyLabels_[4], &historyLabels_[5],
         &inputBox_, &sendButton_, &contactsButton_, &inviteButton_, &identityButton_,
@@ -319,7 +317,7 @@ void HardwareTestApp::prepareContactsPage()
     }
 
     ui::Component *components[] = {
-        &headerBar_, &tabStrip_, &headerDivider_, &pageTitleLabel_,
+        &headerBar_, &headerDivider_, &pageTitleLabel_,
         &contactItems_[0], &contactItems_[1], &contactItems_[2], &contactItems_[3],
         &selectButton_, &nextButton_, &backButton_, &statusBar_,
     };
@@ -347,7 +345,7 @@ void HardwareTestApp::prepareInvitePage()
     inviteDetailLabel_.setText(inviteMeta_);
 
     ui::Component *components[] = {
-        &headerBar_, &tabStrip_, &headerDivider_, &pageTitleLabel_, &primaryLabel_, &inviteDetailLabel_,
+        &headerBar_, &headerDivider_, &pageTitleLabel_, &primaryLabel_, &inviteDetailLabel_,
         &broadcastButton_, &acceptButton_, &backButton_, &statusBar_,
     };
     uiPage_.setComponents(components, sizeof(components) / sizeof(components[0]));
@@ -370,7 +368,7 @@ void HardwareTestApp::prepareIdentityPage()
     inputBox_.setText(inputHint_);
 
     ui::Component *components[] = {
-        &headerBar_, &tabStrip_, &headerDivider_, &pageTitleLabel_, &primaryLabel_, &identityDetailLabel_,
+        &headerBar_, &headerDivider_, &pageTitleLabel_, &primaryLabel_, &identityDetailLabel_,
         &inputBox_, &setNickButton_, &seedButton_, &backButton_, &statusBar_,
     };
     uiPage_.setComponents(components, sizeof(components) / sizeof(components[0]));
@@ -718,10 +716,9 @@ void HardwareTestApp::handleReceivedPacket()
 void HardwareTestApp::pollInput()
 {
     ui::KeyEvent event;
-    if (!keySource_->poll(event)) {
-        return;
+    while (keySource_->poll(event)) {
+        handleKeyEvent(event);
     }
-    handleKeyEvent(event);
 }
 
 const crypto_chat::Contact *HardwareTestApp::selectedContact() const

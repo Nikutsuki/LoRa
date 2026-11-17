@@ -1,6 +1,7 @@
 #include "LcdScreen.hpp"
 
 #include <cstdio>
+#include <cstring>
 
 namespace ui {
 
@@ -27,15 +28,39 @@ LcdScreen::LcdScreen(Ili9341Display &display, const Theme &theme)
 {
 }
 
+bool sameView(const ComponentView &a, const ComponentView &b)
+{
+    return a.kind == b.kind &&
+           a.bounds.x == b.bounds.x &&
+           a.bounds.y == b.bounds.y &&
+           a.bounds.w == b.bounds.w &&
+           a.bounds.h == b.bounds.h &&
+           a.color == b.color &&
+           a.scale == b.scale &&
+           a.focused == b.focused &&
+           a.selected == b.selected &&
+           a.focusable == b.focusable &&
+           std::strcmp(a.primary, b.primary) == 0 &&
+           std::strcmp(a.secondary, b.secondary) == 0;
+}
+
 void LcdScreen::present(const ScreenModel &model)
 {
-    if (model.fullRedraw()) {
+    const bool full = model.fullRedraw() || !hasPresented_ || lastPresented_.count() != model.count();
+    if (full) {
         display_.fillRect(0, 0, display_.width(), display_.height(), theme_.background);
     }
 
     for (size_t i = 0; i < model.count(); i++) {
-        renderComponent(model.at(i));
+        const ComponentView &view = model.at(i);
+        if (!full && sameView(view, lastPresented_.at(i))) {
+            continue;
+        }
+        renderComponent(view);
     }
+
+    lastPresented_ = model;
+    hasPresented_ = true;
 }
 
 void LcdScreen::renderComponent(const ComponentView &view)
