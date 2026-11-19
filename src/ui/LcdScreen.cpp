@@ -36,6 +36,7 @@ bool sameView(const ComponentView &a, const ComponentView &b)
            a.bounds.w == b.bounds.w &&
            a.bounds.h == b.bounds.h &&
            a.color == b.color &&
+           a.statusColor == b.statusColor &&
            a.scale == b.scale &&
            a.focused == b.focused &&
            a.selected == b.selected &&
@@ -76,6 +77,11 @@ void LcdScreen::renderComponent(const ComponentView &view)
         // and drawn on the page background.
         display_.fillRect(x, y, w, h, theme_.background);
         display_.drawText(x, y, view.primary, view.color, theme_.background, view.scale);
+
+        if (view.statusColor != 0) {
+            this->display_.fillRect(static_cast<uint16_t>(x + w - 8), static_cast<uint16_t>(y + 4), 4, 4, view.statusColor);
+        }
+
         if (view.secondary[0] != '\0') {
             const uint16_t advance = static_cast<uint16_t>(8 * view.scale);
             size_t length = 0;

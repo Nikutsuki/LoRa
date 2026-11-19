@@ -30,6 +30,12 @@ public:
                                        uint8_t *out,
                                        size_t capacity,
                                        size_t &outLength);
+    static bool encodeAck(const uint8_t senderDeviceId[DeviceIdSize],
+                               const uint8_t recipientDeviceId[DeviceIdSize],
+                               uint32_t sequence,
+                               uint8_t *out,
+                               size_t capacity,
+                               size_t &outLength);
 
     static bool decode(const uint8_t *packet, size_t packetLength, DecodedPacket &decoded);
     static bool decodeInvitePayload(const DecodedPacket &packet, Contact &contact);

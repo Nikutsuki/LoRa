@@ -30,6 +30,7 @@ struct ComponentMessage {
     bool selected = false;
     bool focusable = false;
     uint16_t color = 0;
+    uint16_t statusColor = 0;
     uint8_t scale = 1;
     const char *primary = "";
     const char *secondary = "";

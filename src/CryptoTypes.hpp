@@ -42,6 +42,7 @@ enum class PacketType : uint8_t {
     InviteBroadcast = 1,
     InviteAccept = 2,
     EncryptedMessage = 3,
+    MessageAck = 4,
 };
 
 struct PacketHeader {

@@ -131,6 +131,29 @@ bool InviteProtocol::encodeEncryptedMessage(const DeviceIdentity &identity,
     return true;
 }
 
+bool InviteProtocol::encodeAck(const uint8_t senderDeviceId[DeviceIdSize],
+                               const uint8_t recipientDeviceId[DeviceIdSize],
+                               uint32_t sequence,
+                               uint8_t *out,
+                               size_t capacity,
+                               size_t &outLength)
+{
+    if (capacity < HeaderSize) {
+        return false;
+    }
+
+    PacketHeader header{};
+    header.type = PacketType::MessageAck;
+    std::memcpy(header.senderDeviceId, senderDeviceId, DeviceIdSize);
+    std::memcpy(header.recipientDeviceId, recipientDeviceId, DeviceIdSize);
+    header.sequence = sequence;
+    header.payloadLength = 0;
+    writeHeader(header, out);
+
+    outLength = HeaderSize;
+    return true;
+}
+
 bool InviteProtocol::decode(const uint8_t *packet, size_t packetLength, DecodedPacket &decoded)
 {
     if (packet == nullptr || packetLength < HeaderSize) {
@@ -241,7 +264,7 @@ bool InviteProtocol::readHeader(const uint8_t *data, size_t size, PacketHeader &
     }
     uint8_t type = data[5];
     if (type < static_cast<uint8_t>(PacketType::InviteBroadcast) ||
-        type > static_cast<uint8_t>(PacketType::EncryptedMessage)) {
+        type > static_cast<uint8_t>(PacketType::MessageAck)) {
         return false;
     }
     header.type = static_cast<PacketType>(type);

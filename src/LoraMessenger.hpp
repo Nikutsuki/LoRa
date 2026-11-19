@@ -26,6 +26,8 @@ public:
     const uint8_t *receivedPacket() const;
     size_t receivedPacketLength() const;
     void startReceive();
+    int16_t lastRssi() const { return lastRssi_; }
+    int8_t lastSnr() const { return lastSnr_; }
 
 private:
     static constexpr uint32_t Frequency = 433000000;
@@ -87,6 +89,8 @@ private:
     volatile bool txTimeout_ = false;
     volatile bool rxDone_ = false;
     volatile bool rxError_ = false;
+    int16_t lastRssi_ = 0;
+    int8_t lastSnr_ = 0;
     bool radioBusy_ = false;
 
     static LoraMessenger *activeInstance_;

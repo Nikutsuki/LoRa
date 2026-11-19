@@ -1,0 +1,20 @@
+  1. Wstęp i cel pracy (problem prywatności, komunikacja off-grid / mesh w sytuacjach awaryjnych, założenia
+  projektowe).
+  2. Przegląd technologii (modulacja LoRa vs inne technologie IoT, kryptografia krzywych eliptycznych, mikrokontroler
+  RP2040).
+  3. Projekt systemu i architektura (schemat blokowy całości, architektura oprogramowania, format ramek i protokół
+  kryptograficzny).
+  4. Implementacja (oprogramowanie układowe C++, integracja biblioteki Monocypher, sterowanie radiem, aplikacja
+  desktopowa w Go).
+  5. Testy i badania eksperymentalne (pomiary zasięgu, stopa błędów, czasy wykonywania operacji kryptograficznych,
+  bilans energetyczny).
+  6. Podsumowanie i wnioski (możliwości rozbudowy, np. routing mesh, obudowa drukowana 3D, zasilanie solarne).
+
+co mozna opisac:
+protokol interfejsu do kompa
+word wrap
+protokol transmisji
+protokol invite
+protokol wysylania pliku
+flow ui
+strukture szyfrowania

@@ -122,6 +122,7 @@ type Component struct {
 	Selected  bool
 	Focusable bool
 	Color     uint16
+	StatusColor uint16
 	Scale     uint8
 	Primary   string
 	Secondary string
@@ -308,6 +309,9 @@ func decodeComponent(r *payloadReader) (Component, error) {
 		return c, err
 	}
 	if c.Color, err = r.u16(); err != nil {
+		return c, err
+	}
+	if c.StatusColor, err = r.u16(); err != nil {
 		return c, err
 	}
 	if c.Scale, err = r.u8(); err != nil {

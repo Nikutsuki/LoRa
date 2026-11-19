@@ -66,6 +66,7 @@ bool sameView(const ComponentView &a, const ComponentView &b)
            a.bounds.w == b.bounds.w &&
            a.bounds.h == b.bounds.h &&
            a.color == b.color &&
+           a.statusColor == b.statusColor &&
            a.scale == b.scale &&
            a.focused == b.focused &&
            a.selected == b.selected &&

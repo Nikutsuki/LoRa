@@ -59,6 +59,7 @@ public:
 
     void setText(const char *text);
     void setTone(Tone tone);
+    void setStatusColor(uint16_t color) { this->statusColor_ = color; }
     uint8_t scale() const;
     ComponentView describe(bool focused, const Theme &theme) const override;
 
@@ -66,6 +67,7 @@ private:
     const char *text_;
     Tone tone_;
     uint8_t scale_;
+    uint16_t statusColor_ = 0;
 };
 
 class Button : public Component {

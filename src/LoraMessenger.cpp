@@ -134,7 +134,7 @@ void LoraMessenger::onTxTimeout()
     }
 }
 
-void LoraMessenger::onRxDone(uint8_t *payload, uint16_t size, int16_t, int8_t)
+void LoraMessenger::onRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr)
 {
     if (activeInstance_ == nullptr) {
         return;
@@ -142,6 +142,8 @@ void LoraMessenger::onRxDone(uint8_t *payload, uint16_t size, int16_t, int8_t)
     size_t copySize = size > MaxPacketSize ? MaxPacketSize : size;
     std::memcpy(activeInstance_->rxBuffer_, payload, copySize);
     activeInstance_->rxLength_ = copySize;
+    activeInstance_->lastRssi_ = rssi;
+    activeInstance_->lastSnr_ = snr;
     activeInstance_->rxDone_ = true;
     activeInstance_->startReceive();
 }

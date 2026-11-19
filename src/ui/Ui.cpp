@@ -71,6 +71,7 @@ ComponentView Label::describe(bool focused, const Theme &theme) const
     view.bounds = bounds_;
     copyText(view.primary, sizeof(view.primary), text_);
     view.color = theme.colorFor(tone_);
+    view.statusColor = statusColor_;
     view.scale = scale_;
     view.focusable = false;
     (void)focused;

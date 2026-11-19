@@ -24,9 +24,11 @@ proto::ComponentMessage UartScreen::toMessage(const ui::ComponentView &view)
     message.selected = view.selected;
     message.focusable = view.focusable;
     message.color = view.color;
+    message.statusColor = view.statusColor;
     message.scale = view.scale;
     message.primary = view.primary;
     message.secondary = view.secondary;
+    
     return message;
 }
 

@@ -47,6 +47,7 @@ struct ComponentView {
     char primary[TextSize]{};
     char secondary[TextSize]{};
     uint16_t color = 0;
+    uint16_t statusColor = 0;
     uint8_t scale = 1;
     bool focused = false;
     bool selected = false;

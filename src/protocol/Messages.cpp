@@ -31,6 +31,7 @@ bool writeComponent(PayloadBuilder &builder, const ComponentMessage &component)
            builder.u16(component.h) &&
            builder.u8(flags) &&
            builder.u16(component.color) &&
+           builder.u16(component.statusColor) &&
            builder.u8(component.scale) &&
            builder.str(component.primary) &&
            builder.str(component.secondary);
@@ -46,6 +47,7 @@ bool readComponent(PayloadReader &reader, ComponentMessage &component)
         !reader.u16(component.h) ||
         !reader.u8(flags) ||
         !reader.u16(component.color) ||
+        !reader.u16(component.statusColor) ||
         !reader.u8(component.scale) ||
         !reader.str(component.primary) ||
         !reader.str(component.secondary)) {

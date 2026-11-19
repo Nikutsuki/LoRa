@@ -86,6 +86,7 @@ private:
     void handleCommand();
     void sendCurrentInput();
     void sendInvite();
+    void sendAck(const uint8_t recipientDeviceId[crypto_chat::DeviceIdSize], uint32_t sequence);
     void acceptPendingInvite();
     void selectNextContact();
     void setNickname(const char *nickname);
@@ -137,12 +138,16 @@ private:
     size_t inputLength_ = 0;
     size_t selectedContactIndex_ = 0;
     uint32_t sequence_ = 1;
+    bool awaitingAck_ = false;
     bool hasPendingInvite_ = false;
     bool geometryAnnounced_ = false;
     bool uiDirty_ = true;
     bool fullRedraw_ = true;
     Page page_ = Page::Chat;
     absolute_time_t nextKeyboardStatus_{};
+    absolute_time_t ackDeadline_{};
+    size_t awaitingAck_index_ = 0;
+    uint32_t awaitingAckSeq_ = 0;
 
     static constexpr const char *TabLabels[static_cast<size_t>(Page::Count)] = {
         "Messages", "Contacts", "Invite", "Identity",

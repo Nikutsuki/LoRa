@@ -257,7 +257,19 @@ func (m *DeviceModel) renderLabel(c device.Component, th theme.Theme) string {
 	if text == "" {
 		text = " "
 	}
-	return "  " + style.Render(text)
+
+	line := " " + style.Render(text)
+
+	if c.Secondary != "" {
+		line += "  " + th.NoticeInfo.Render(c.Secondary)
+	}
+
+	if c.StatusColor != 0 {
+		dotStyle := m.toneStyle(c.StatusColor, th)
+		line += "  " + dotStyle.Render("●")
+	}
+
+	return line
 }
 
 func (m *DeviceModel) renderListItem(c device.Component, th theme.Theme) string {
