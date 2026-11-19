@@ -37,6 +37,11 @@ type DeviceModel struct {
 // connectingStatus is the placeholder shown until the device says something.
 const connectingStatus = "Connecting to device..."
 
+const (
+	TotalWidth  = 80
+	TotalHeight = 24
+)
+
 // NewDeviceModel builds a remote control view for an established session.
 func NewDeviceModel(session *device.Session) *DeviceModel {
 	return &DeviceModel{
@@ -46,6 +51,11 @@ func NewDeviceModel(session *device.Session) *DeviceModel {
 		width:   TotalWidth,
 		height:  TotalHeight,
 	}
+}
+
+// New builds a remote control view for an established session.
+func New(session *device.Session) *DeviceModel {
+	return NewDeviceModel(session)
 }
 
 // Init subscribes to the session event stream.

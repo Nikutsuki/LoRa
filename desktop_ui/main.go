@@ -7,7 +7,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/user/lora-tui/internal/controller"
 	"github.com/user/lora-tui/internal/device"
 	"github.com/user/lora-tui/internal/ui"
 )
@@ -15,8 +14,6 @@ import (
 var version = "1.2.0"
 
 func main() {
-	storagePath := flag.String("storage", "lora_storage.json", "path to the local state file")
-	nickname := flag.String("nick", "", "override the device nickname")
 	port := flag.String("port", "", "serial port of the Pico (skips auto-detection)")
 	baud := flag.Int("baud", 115200, "serial baud rate")
 	autoDetect := flag.Bool("auto", true, "probe serial ports and connect to the device")
@@ -35,20 +32,25 @@ func main() {
 		return
 	}
 
-	if *port != "" {
-		runDeviceMode(*port, *baud)
-		return
-	}
-
-	if *autoDetect {
-		if port, ok := detectPort(*baud, *probeTimeout); ok {
-			runDeviceMode(port, *baud)
-			return
+	targetPort := *port
+	if targetPort == "" {
+		if !*autoDetect {
+			fmt.Fprintln(os.Stderr, "Error: no serial port specified. Use --port or enable --auto.")
+			os.Exit(1)
 		}
-		fmt.Fprintln(os.Stderr, "No device found; starting offline demo (use --list-ports to inspect).")
+
+		detected, ok := detectPort(*baud, *probeTimeout)
+		if !ok {
+			fmt.Fprintln(os.Stderr, "Error: no LoRa device found (use --list-ports to inspect available ports, or specify --port).")
+			os.Exit(1)
+		}
+		targetPort = detected
 	}
 
-	runLocalMode(*storagePath, *nickname)
+	if err := runDeviceMode(targetPort, *baud); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 // printPorts lists every serial port, marking whether it speaks our protocol.
@@ -105,11 +107,10 @@ func detectPort(baud int, timeout time.Duration) (string, bool) {
 }
 
 // runDeviceMode mirrors the physical device and forwards keys over UART.
-func runDeviceMode(port string, baud int) {
+func runDeviceMode(port string, baud int) error {
 	transport, err := device.OpenSerial(device.SerialConfig{Port: port, Baud: baud})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("open serial: %w", err)
 	}
 
 	session := device.Start(transport)
@@ -121,31 +122,7 @@ func runDeviceMode(port string, baud int) {
 	)
 
 	if _, err := program.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("run tui: %w", err)
 	}
-}
-
-// runLocalMode keeps the original offline demo behaviour.
-func runLocalMode(storagePath, nickname string) {
-	appController, err := controller.NewAppController(storagePath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-	defer appController.Close()
-
-	if nickname != "" {
-		_ = appController.SetNickname(nickname)
-	}
-
-	program := tea.NewProgram(
-		ui.NewAppModel(appController),
-		tea.WithAltScreen(),
-	)
-
-	if _, err := program.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+	return nil
 }
