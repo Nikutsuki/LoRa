@@ -35,8 +35,7 @@ HardwareTestApp::HardwareTestApp()
       lcdScreen_(display_, theme_),
       uartScreen_(session_, TftWidth, TftHeight),
       cardKbInput_(keyboard_),
-      uartInput_(session_),
-      fileUploadManager_(session_, radio_, contacts_)
+      uartInput_(session_)
 {
     std::strncpy(notice_, "Starting", sizeof(notice_) - 1);
 }
@@ -888,9 +887,22 @@ void HardwareTestApp::pollRadio()
         handleReceivedPacket();
         break;
     case crypto_chat::LoraMessenger::Event::TxDone:
-        setNotice("LoRa TX complete", ui::Tone::Success);
+        if (awaitingFileTxAck_ == true)
+        {
+            awaitingFileTxAck_ = false;
+            session_.sendExchangeAck(pendingFileAckChunk_, 0);
+        }
+        else
+        {
+            setNotice("LoRa TX complete", ui::Tone::Success);
+        }
         break;
     case crypto_chat::LoraMessenger::Event::TxTimeout:
+        if (awaitingFileTxAck_ == true)
+        {
+            awaitingFileTxAck_ = false;
+            session_.sendExchangeAck(pendingFileAckChunk_, 3);
+        }
         setNotice("LoRa TX timeout", ui::Tone::Danger);
         break;
     case crypto_chat::LoraMessenger::Event::RxError:
@@ -1007,16 +1019,19 @@ void HardwareTestApp::pollInput()
 
 void HardwareTestApp::pollFileExchange()
 {
+    if (awaitingFileTxAck_ == true || radio_.isBusy())
+        return;
+
     proto::FileExchangeStartMessage startMsg;
     if (session_.nextFileStart(startMsg))
     {
-        
+        sendFileStart(startMsg);
     }
 
     proto::FileExchangeDataMessage dataMsg;
     if (session_.nextFileData(dataMsg))
     {
-
+        sendFileChunk(dataMsg);
     }
 }
 
@@ -1244,4 +1259,91 @@ size_t HardwareTestApp::focusIndexForAction(Action action)
         uiPage_.focusComponent(target);
     }
     return uiPage_.focusedIndex();
+}
+
+void HardwareTestApp::sendFileStart(const proto::FileExchangeStartMessage &msg)
+{
+    const crypto_chat::Contact *contact = selectedContact();
+
+    if (contact == nullptr)
+    {
+        session_.sendExchangeAck(0, 1);
+        setNotice("No contact selected", ui::Tone::Danger);
+        return;
+    }
+
+    std::strncpy(uploadingFilename_, msg.filename, sizeof(uploadingFilename_) - 1);
+    uploadingFilename_[sizeof(uploadingFilename_) - 1] = '\0';
+    uploadingFileSize_ = msg.fileSize;
+    uploadingBytesSent_ = 0;
+
+    uint8_t packet[crypto_chat::MaxPacketSize];
+    size_t packetLength = 0;
+
+    if (!crypto_chat::InviteProtocol::encodeFileExchangeStart(
+            contacts_.identity().deviceId,
+            contact->deviceId,
+            sequence_++,
+            uploadingFilename_,
+            uploadingFileSize_,
+            packet, sizeof(packet), packetLength))
+    {
+        session_.sendExchangeAck(0, 2);
+        return;
+    }
+
+    if (!radio_.sendPacket(packet, packetLength))
+    {
+        awaitingFileTxAck_ = true;
+        pendingFileAckChunk_ = 0;
+        return;
+    }
+
+    session_.sendExchangeAck(0, 0);
+    setNotice("File transfer started", ui::Tone::Focus);
+}
+
+void HardwareTestApp::sendFileChunk(const proto::FileExchangeDataMessage &msg)
+{
+    const crypto_chat::Contact *contact = selectedContact();
+    if (contact == nullptr)
+    {
+        session_.sendExchangeAck(msg.chunkIndex, 1);
+        return;
+    }
+
+    uint8_t packet[crypto_chat::MaxPacketSize];
+    size_t packetLength = 0;
+
+    if (!crypto_chat::InviteProtocol::encodeFileExchangeData(
+            contacts_.identity().deviceId,
+            contact->deviceId,
+            sequence_++,
+            msg.chunkIndex,
+            msg.chunkData,
+            msg.length,
+            packet, sizeof(packet), packetLength))
+    {
+        session_.sendExchangeAck(msg.chunkIndex, 2);
+    }
+
+    if (!radio_.sendPacket(packet, packetLength))
+    {
+        session_.sendExchangeAck(msg.chunkIndex, 3);
+        return;
+    }
+
+    uploadingBytesSent_ += msg.length;
+    awaitingFileTxAck_ = true;
+    pendingFileAckChunk_ = msg.chunkIndex;
+
+    if (uploadingFileSize_ > 0)
+    {
+        int percent = static_cast<int>((uploadingBytesSent_ * 1000ULL) / uploadingFileSize_);
+        if (percent > 100)
+            percent = 100;
+        char status[64];
+        std::snprintf(status, sizeof(status), "Sending %s (%d%%)", uploadingFilename_, percent);
+        setNotice(status, ui::Tone::Focus);
+    }
 }

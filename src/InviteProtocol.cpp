@@ -163,7 +163,7 @@ namespace crypto_chat
         return true;
     }
 
-    bool InviteProtocol::encodeFileUploadStart(const uint8_t senderDeviceId[DeviceIdSize], const uint8_t recipientDeviceId[DeviceIdSize], uint32_t sequence, const char *filename, uint32_t fileSize, uint8_t *out, size_t capacity, size_t &outLength)
+    bool InviteProtocol::encodeFileExchangeStart(const uint8_t senderDeviceId[DeviceIdSize], const uint8_t recipientDeviceId[DeviceIdSize], uint32_t sequence, const char *filename, uint32_t fileSize, uint8_t *out, size_t capacity, size_t &outLength)
     {
         size_t nameLen = (filename != nullptr) ? std::strlen(filename) : 0;
         size_t payloadLength = 4 + nameLen;
@@ -184,6 +184,28 @@ namespace crypto_chat
         std::memcpy(payload + 4, filename, nameLen);
 
         outLength = HeaderSize + payloadLength;
+        return true;
+    }
+
+    bool InviteProtocol::encodeFileExchangeData(const uint8_t senderDeviceId[DeviceIdSize], const uint8_t recipientDeviceId[DeviceIdSize], uint32_t sequence, uint32_t chunkIndex, const uint8_t *chunkData, uint16_t chunkLen, uint8_t *out, size_t capacity, size_t &outLength)
+    {
+        size_t payloadLength = 4 + chunkLen;
+        if (capacity < HeaderSize + payloadLength || payloadLength > 255) return false;
+
+        PacketHeader header{};
+        header.type = PacketType::FileExchangeData;
+        std::memcpy(header.senderDeviceId, senderDeviceId, DeviceIdSize);
+        std::memcpy(header.recipientDeviceId, recipientDeviceId, DeviceIdSize);
+        header.sequence = sequence;
+        header.payloadLength = static_cast<uint8_t>(payloadLength);
+        writeHeader(header,out);
+
+        uint8_t *payload = out + HeaderSize;
+        putU32(payload, chunkIndex);
+        std::memcpy(payload + 4, chunkData, chunkLen);
+
+        outLength = HeaderSize + payloadLength;
+        
         return true;
     }
 

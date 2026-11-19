@@ -18,7 +18,6 @@
 #include "ui/LcdScreen.hpp"
 #include "ui/Screen.hpp"
 #include "ui/Ui.hpp"
-#include "FileUploadManager.hpp"
 #include "pico/time.h"
 
 /*!
@@ -102,6 +101,9 @@ private:
     Action actionForFocusedComponent() const;
     size_t focusIndexForAction(Action action);
 
+    void sendFileStart(const proto::FileExchangeStartMessage &msg);
+    void sendFileChunk(const proto::FileExchangeDataMessage &msg);
+
     Ili9341Display display_;
     CardKbKeyboard keyboard_;
     proto::UsbCdcTransport usbLink_;
@@ -121,8 +123,6 @@ private:
     crypto_chat::LoraMessenger radio_;
     crypto_chat::ChatHistory history_;
     crypto_chat::Contact pendingInvite_{};
-
-    proto::FileUploadManager fileUploadManager_;
 
     char input_[InputMax]{};
     char notice_[64]{};
@@ -153,6 +153,12 @@ private:
     absolute_time_t ackDeadline_{};
     size_t awaitingAck_index_ = 0;
     uint32_t awaitingAckSeq_ = 0;
+
+    char uploadingFilename_[64]{};
+    uint32_t uploadingFileSize_ = 0;
+    uint32_t uploadingBytesSent_ = 0;
+    bool awaitingFileTxAck_ = false;
+    uint32_t pendingFileAckChunk_ = 0;
 
     static constexpr const char *TabLabels[static_cast<size_t>(Page::Count)] = {
         "Messages", "Contacts", "Invite", "Identity",

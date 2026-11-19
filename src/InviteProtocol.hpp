@@ -41,12 +41,22 @@ namespace crypto_chat
             size_t capacity,
             size_t &outLength);
 
-        static bool encodeFileUploadStart(
+        static bool encodeFileExchangeStart(
             const uint8_t senderDeviceId[DeviceIdSize],
             const uint8_t recipientDeviceId[DeviceIdSize],
             uint32_t sequence,
             const char *filename,
             uint32_t fileSize,
+            uint8_t *out,
+            size_t capacity,
+            size_t &outLength);
+        static bool encodeFileExchangeData(
+            const uint8_t senderDeviceId[DeviceIdSize],
+            const uint8_t recipientDeviceId[DeviceIdSize],
+            uint32_t sequence,
+            uint32_t chunkIndex,
+            const uint8_t *chunkData,
+            uint16_t chunkLen,
             uint8_t *out,
             size_t capacity,
             size_t &outLength);

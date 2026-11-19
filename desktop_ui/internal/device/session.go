@@ -313,8 +313,6 @@ func (s *Session) UploadFile(path string) error {
 		if err := s.waitForAck(uint32(i)); err != nil {
 			return err
 		}
-
-		println(i)
 	}
 
 	return s.SendFileExchangeEnd()
