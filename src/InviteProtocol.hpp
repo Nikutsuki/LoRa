@@ -60,6 +60,19 @@ namespace crypto_chat
             uint8_t *out,
             size_t capacity,
             size_t &outLength);
+        static bool encodeFileExchangeEnd(
+            const uint8_t senderDeviceId[DeviceIdSize],
+            const uint8_t recipientDeviceId[DeviceIdSize],
+            uint32_t sequence,
+            uint8_t *out,
+            size_t capacity,
+            size_t &outLength);
+        static bool encodeFileExchangeCancel(
+            const uint8_t senderDeviceId[DeviceIdSize],
+            const uint8_t recipientDeviceId[DeviceIdSize],
+            uint32_t sequence,
+            uint8_t *out, size_t capacity, size_t &outLength
+        );
 
         static bool decode(const uint8_t *packet, size_t packetLength, DecodedPacket &decoded);
         static bool decodeInvitePayload(const DecodedPacket &packet, Contact &contact);
@@ -69,6 +82,8 @@ namespace crypto_chat
             const DecodedPacket &packet,
             char *outMessage,
             size_t outCapacity);
+        static bool decodeFileExchangeStart(const DecodedPacket &packet, char *filename, size_t maxFilenameLen, uint32_t &fileSize);
+        static bool decodeFileExchangeData(const DecodedPacket &packet, uint32_t &chunkIndex, const uint8_t *&ChunkData, size_t &chunkLen);
 
         static bool isBroadcast(const uint8_t deviceId[DeviceIdSize]);
         static bool isForDevice(const DecodedPacket &packet, const uint8_t deviceId[DeviceIdSize]);

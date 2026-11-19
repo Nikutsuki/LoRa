@@ -2,6 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -143,6 +145,25 @@ func (m *DeviceModel) applyEvent(event device.Event) {
 			m.status = "Disconnected: " + event.Err.Error()
 		} else {
 			m.status = "Disconnected"
+		}
+	case device.EventFileReceived:
+		cleanName := strings.Map(func(r rune) rune {
+			if r >= 32 && r < 127 && !strings.ContainsRune(`/\:*?"<>|`, r) {
+				return r
+			}
+			return -1
+		}, filepath.Base(event.FileName))
+
+		if cleanName == "" {
+			cleanName = "received_file"
+		}
+
+		savePath, err := dialog.File().Title("Save Received File").SetStartFile(cleanName).Save()
+		if err != nil {
+			return
+		}
+		if savePath != "" {
+			_ = os.WriteFile(savePath, event.FileData, 0644)
 		}
 	}
 }
@@ -377,9 +398,14 @@ func (m *DeviceModel) renderStatus(th theme.Theme, width int) string {
 		text = m.status
 	}
 
+	statusWidth := width - 2
+	if statusWidth < 0 {
+		statusWidth = 0
+	}
+
 	return lipgloss.NewStyle().
 		Background(th.Surface).
-		Width(width).
+		Width(statusWidth).
 		Padding(0, 1).
 		Render(style.Render(text))
 }

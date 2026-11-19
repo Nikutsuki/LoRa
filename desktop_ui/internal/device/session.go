@@ -1,6 +1,7 @@
 package device
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -24,14 +25,17 @@ const (
 	EventNotice
 	// EventDisconnected fires when the link drops.
 	EventDisconnected
+	EventFileReceived
 )
 
 // Event is a state change the UI needs to react to.
 type Event struct {
-	Kind   EventKind
-	Screen Screen
-	Notice Notice
-	Err    error
+	Kind     EventKind
+	Screen   Screen
+	Notice   Notice
+	Err      error
+	FileName string
+	FileData []byte
 }
 
 // Session drives a device link on a background goroutine.
@@ -50,6 +54,10 @@ type Session struct {
 	lastScreen Screen
 	lastNotice Notice
 	connected  bool
+
+	incomingFilename string
+	incomingFileSize uint32
+	incomingBuffer   bytes.Buffer
 
 	// writeMu serialises outbound frames. The heartbeat and the UI both write,
 	// and a transport whose buffer is full blocks on Write (an unbuffered pipe
@@ -265,7 +273,30 @@ func (s *Session) handleFrame(frame Frame) {
 			default:
 			}
 		}
+	case MessageFileExchangeStart:
+		msg, err := DecodeFileExchangeStart(frame.Payload)
+		if err == nil {
+			s.incomingFilename = msg.Filename
+			s.incomingFileSize = msg.FileSize
+			s.incomingBuffer.Reset()
+		}
+	case MessageFileExchangeData:
+		_, data, err := DeecodeFileExchangeData(frame.Payload)
+		if err == nil {
+			s.incomingBuffer.Write(data)
+		}
+	case MessageFileExchangeEnd:
+		s.publish(Event{
+			Kind:     EventFileReceived,
+			FileName: s.incomingFilename,
+			FileData: s.incomingBuffer.Bytes(),
+		})
+	case MessageFileExchangeCancel:
+		s.incomingBuffer.Reset()
+		s.incomingFilename = ""
+		s.publish(Event{Kind: EventNotice, Notice: Notice{Level: NoticeDanger, Text: "File transfer cancelled"}})
 	}
+
 }
 
 func (s *Session) waitForAck(expectedChunk uint32) error {

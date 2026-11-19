@@ -235,6 +235,10 @@ func (r *payloadReader) str() (string, error) {
 	return v, nil
 }
 
+func (r *payloadReader) bytes(length uint32) ([]byte, error) {
+	return r.buf[r.off : r.off+int(length)], nil
+}
+
 // EncodeKey builds the payload for a single key press.
 func EncodeKey(code KeyCode, character byte) ([]byte, error) {
 	b := &payloadBuilder{}
@@ -292,6 +296,36 @@ func DecodeFileExchangeAck(payload []byte) (FileExchangeAckMessage, error) {
 	}
 
 	return FileExchangeAckMessage{ChunkIndex: chunkIndex, Status: status}, nil
+}
+
+func DecodeFileExchangeStart(payload []byte) (FileExchangeStartMessage, error) {
+	r := payloadReader{buf: payload}
+	filename, err := r.str()
+	if err != nil {
+		return FileExchangeStartMessage{}, err
+	}
+
+	size, err := r.u32()
+	if err != nil {
+		return FileExchangeStartMessage{}, err
+	}
+
+	return FileExchangeStartMessage{Filename: filename, FileSize: size}, nil
+}
+
+func DeecodeFileExchangeData(payload []byte) (uint32, []byte, error) {
+	r := &payloadReader{buf: payload}
+	chunkIndex, err := r.u32()
+	if err != nil {
+		return 0, nil, err
+	}
+
+	length, err := r.u32()
+	if err != nil {
+		return 0, nil, err
+	}
+	data, err := r.bytes(length)
+	return chunkIndex, data, err
 }
 
 // DecodeNotice parses a Notice payload.

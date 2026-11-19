@@ -50,7 +50,10 @@ namespace proto
             session->handleFileDataFrame(payload, length);
             break;
         case MessageType::FileExchangeEnd:
+            session->hasPendingFileEnd_ = true;
         case MessageType::FileExchangeCancel:
+            session->hasPendingFileCancel_ = true;
+            break;
         default:
             break;
         }
@@ -83,19 +86,32 @@ namespace proto
 
     void LinkSession::handleFileStartFrame(const uint8_t *payload, size_t length)
     {
-        PayloadReader reader(payload, length);
-        if (readFileExchangeStart(reader, pendingFileStart_)) {
-            std::strncpy(pendingFilename_, pendingFileStart_.filename, sizeof(pendingFilename_) - 1);
-            pendingFilename_[sizeof(pendingFilename_) - 1] = '\0';
-            pendingFileStart_.filename = pendingFilename_;
-            hasPendingFileStart_ = true;
+        if (length < 1) return;
+        uint8_t nameLen = payload[0];
+        if (1 + nameLen + 4 > length) return;
+
+        if (nameLen >= sizeof(pendingFilename_)) {
+            nameLen = sizeof(pendingFilename_) - 1;
         }
+
+        std::memcpy(pendingFilename_, payload + 1, nameLen);
+        pendingFilename_[nameLen] = '\0';
+
+        pendingFileStart_.filename = pendingFilename_;
+
+        const uint8_t *sizePtr = payload + 1 + payload[0];
+        pendingFileStart_.fileSize = static_cast<uint32_t>(
+            sizePtr[0] | (sizePtr[1] << 8) | (sizePtr[2] << 16) | (sizePtr[3] << 24)
+        );
+        
+        hasPendingFileStart_ = true;
     }
 
     void LinkSession::handleFileDataFrame(const uint8_t *payload, size_t length)
     {
         PayloadReader reader(payload, length);
-        if (readFileExchangeData(reader, pendingFileData_)) {
+        if (readFileExchangeData(reader, pendingFileData_))
+        {
             hasPendingFileData_ = true;
         }
     }
@@ -158,9 +174,57 @@ namespace proto
         return emit(MessageType::FileExchangeAck, payloadBuffer_, builder.size());
     }
 
+    void LinkSession::sendFileExchangeStart(const char *filename, uint32_t fileSize)
+    {
+        uint8_t payload[256];
+        size_t nameLen = (filename != nullptr) ? std::strlen(filename) : 0;
+        if (nameLen > 255) nameLen = 255;
+
+        payload[0] = static_cast<uint8_t>(nameLen);
+        std::memcpy(payload + 1, filename, nameLen);
+
+        size_t off = 1 + nameLen;
+
+        payload[off + 0] = static_cast<uint8_t>(fileSize & 0xFF);
+        payload[off + 1] = static_cast<uint8_t>((fileSize >> 8) & 0xFF);
+        payload[off + 2] = static_cast<uint8_t>((fileSize >> 16) & 0xFF);
+        payload[off + 3] = static_cast<uint8_t>((fileSize >> 24) & 0xFF);
+
+        emit(MessageType::FileExchangeStart, payload, off + 4);
+    }
+
+    void LinkSession::sendFileExchangeData(uint32_t chunkIndex, const uint8_t *data, size_t length)
+    {
+        uint8_t payload[256];
+
+        payload[0] = static_cast<uint8_t>(chunkIndex & 0xFF);
+        payload[1] = static_cast<uint8_t>((chunkIndex >> 8) & 0xFF);
+        payload[2] = static_cast<uint8_t>((chunkIndex >> 16) & 0xFF);
+        payload[3] = static_cast<uint8_t>((chunkIndex >> 24) & 0xFF);
+
+        payload[4] = static_cast<uint8_t>(length & 0xFF);
+        payload[5] = static_cast<uint8_t>((length >> 8) & 0xFF);
+        payload[6] = static_cast<uint8_t>((length >> 16) & 0xFF);
+        payload[7] = static_cast<uint8_t>((length >> 24) & 0xFF);
+        std::memcpy(payload + 8, data, length);
+
+        emit(MessageType::FileExchangeData, payload, 8 + length);
+    }
+
+    void LinkSession::sendFileExchangeEnd()
+    {
+        emit(MessageType::FileExchangeEnd, nullptr, 0);
+    }
+
+    bool LinkSession::sendFileExchangeCancel()
+    {
+        return emit(MessageType::FileExchangeCancel, nullptr, 0);
+    }
+
     bool LinkSession::nextFileStart(FileExchangeStartMessage &msg)
     {
-        if (!hasPendingFileStart_) {
+        if (!hasPendingFileStart_)
+        {
             return false;
         }
         msg = pendingFileStart_;
@@ -170,13 +234,28 @@ namespace proto
 
     bool LinkSession::nextFileData(FileExchangeDataMessage &msg)
     {
-        if (!hasPendingFileData_) {
+        if (!hasPendingFileData_)
+        {
             return false;
         }
 
         msg = pendingFileData_;
         hasPendingFileData_ = false;
         return true;
+    }
+
+    bool LinkSession::nextFileEnd()
+    {
+        const bool pending = hasPendingFileEnd_;
+        hasPendingFileEnd_ = false;
+        return pending;
+    }
+
+    bool LinkSession::nextFileCancel()
+    {
+        const bool pending = hasPendingFileCancel_;
+        hasPendingFileCancel_ = false;
+        return pending;
     }
 
     bool LinkSession::emit(MessageType type, const uint8_t *payload, size_t length)

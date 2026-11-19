@@ -62,6 +62,7 @@ private:
         AcceptInvite,
         SetNickname,
         ProvisionSeed,
+        CancelFileTransfer,
     };
 
     void initializeDisplay();
@@ -103,6 +104,10 @@ private:
 
     void sendFileStart(const proto::FileExchangeStartMessage &msg);
     void sendFileChunk(const proto::FileExchangeDataMessage &msg);
+    void sendFileEnd();
+    void canceFileTransfer(bool notifyPeer);
+
+    void updateFileProgress(uint32_t current, uint32_t total);
 
     Ili9341Display display_;
     CardKbKeyboard keyboard_;
@@ -148,6 +153,7 @@ private:
     bool geometryAnnounced_ = false;
     bool uiDirty_ = true;
     bool fullRedraw_ = true;
+    bool uartResyncNeeded_ = false;
     Page page_ = Page::Chat;
     absolute_time_t nextKeyboardStatus_{};
     absolute_time_t ackDeadline_{};
@@ -215,4 +221,15 @@ private:
 
     // Status bar: y = 216..238 (fits cleanly inside 240px height)
     ui::StatusBar statusBar_{{0, 216, 320, 22}, notice_, ui::Tone::Muted};
+
+    enum class FileTransferRole { None, Sending, Receiving };
+    FileTransferRole fileTransferRole_ = FileTransferRole::None;
+    char filePopupTitle_[48]{};
+    char fileProgressBarText_[36]{};
+    char fileProgressStats_[36]{};
+
+    ui::Label filePopupTitleLabel_{{40, 55, 240, 20}, filePopupTitle_, ui::Tone::Accent, 1};
+    ui::Label fileProgressBarLabel_{{40, 85, 240, 20}, fileProgressBarText_, ui::Tone::Focus, 1};
+    ui::Label fileProgressStatsLabel_{{40, 115, 240, 20}, fileProgressStats_, ui::Tone::Muted, 1};
+    ui::Button fileCancelButton_{{110, 145, 100, 26}, "Cancel"};
 };

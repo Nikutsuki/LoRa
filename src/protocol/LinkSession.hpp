@@ -45,9 +45,15 @@ public:
     bool sendHello(uint16_t width, uint16_t height);
     bool sendNotice(const NoticeMessage &notice);
     bool sendExchangeAck(uint32_t chunkIndex, uint8_t status = 0);
+    void sendFileExchangeStart(const char *filename, uint32_t fileSize);
+    void sendFileExchangeData(uint32_t chunkIndex, const uint8_t *data, size_t length);
+    void sendFileExchangeEnd();
+    bool sendFileExchangeCancel();
 
     bool nextFileStart(FileExchangeStartMessage &msg);
     bool nextFileData(FileExchangeDataMessage &msg);
+    bool nextFileEnd();
+    bool nextFileCancel();
 
     /*!
      * Starts collecting a Screen frame.
@@ -123,6 +129,9 @@ private:
 
     FileExchangeDataMessage pendingFileData_{};
     bool hasPendingFileData_ = false;
+
+    bool hasPendingFileEnd_ = false;
+    bool hasPendingFileCancel_ = false;
 
     ComponentMessage screenComponents_[MaxScreenComponents]{};
     uint16_t screenWidth_ = 0;

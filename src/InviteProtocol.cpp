@@ -209,6 +209,39 @@ namespace crypto_chat
         return true;
     }
 
+    bool InviteProtocol::encodeFileExchangeEnd(const uint8_t senderDeviceId[DeviceIdSize], const uint8_t recipientDeviceId[DeviceIdSize], uint32_t sequence, uint8_t *out, size_t capacity, size_t &outLength)
+    {
+        if (capacity < HeaderSize)
+        {
+            return false;
+        }
+
+        PacketHeader header{};
+        header.type = PacketType::FileExchangeEnd;
+        std::memcpy(header.senderDeviceId, senderDeviceId, DeviceIdSize);
+        std::memcpy(header.recipientDeviceId, recipientDeviceId, DeviceIdSize);
+        header.sequence = sequence;
+        header.payloadLength = 0;
+
+        writeHeader(header, out);
+        outLength = HeaderSize;
+        return true;
+    }
+
+    bool InviteProtocol::encodeFileExchangeCancel(const uint8_t senderDeviceId[DeviceIdSize], const uint8_t recipientDeviceId[DeviceIdSize], uint32_t sequence, uint8_t *out, size_t capacity, size_t &outLength)
+    {
+        if (capacity < HeaderSize) return false;
+        PacketHeader header{};
+        header.type = PacketType::FileExchangeCancel;
+        std::memcpy(header.senderDeviceId, senderDeviceId, DeviceIdSize);
+        std::memcpy(header.recipientDeviceId, recipientDeviceId, DeviceIdSize);
+        header.sequence = sequence;
+        header.payloadLength = 0;
+        writeHeader(header, out);
+        outLength = HeaderSize;
+        return true;
+    }
+
     bool InviteProtocol::decode(const uint8_t *packet, size_t packetLength, DecodedPacket &decoded)
     {
         if (packet == nullptr || packetLength < HeaderSize)
@@ -298,6 +331,26 @@ namespace crypto_chat
         return true;
     }
 
+    bool InviteProtocol::decodeFileExchangeStart(const DecodedPacket &packet, char *filename, size_t maxFilenameLen, uint32_t &fileSize)
+    {
+        if (packet.payloadLength < 4) return false;
+        fileSize = getU32(packet.payload);
+        size_t nameLen = packet.payloadLength - 4;
+        if (nameLen >= maxFilenameLen) nameLen = maxFilenameLen - 1;
+        std::memcpy(filename, packet.payload + 4, nameLen);
+        filename[nameLen] = '\0';
+        return true;
+    }
+
+    bool InviteProtocol::decodeFileExchangeData(const DecodedPacket &packet, uint32_t &chunkIndex, const uint8_t *&ChunkData, size_t &chunkLen)
+    {
+        if (packet.payloadLength < 4) return false;
+        chunkIndex = getU32(packet.payload);
+        ChunkData = packet.payload + 4;
+        chunkLen = packet.payloadLength - 4;
+        return true;
+    }
+
     bool InviteProtocol::isBroadcast(const uint8_t deviceId[DeviceIdSize])
     {
         return std::memcmp(deviceId, BroadcastDeviceId, DeviceIdSize) == 0;
@@ -328,7 +381,7 @@ namespace crypto_chat
         }
         uint8_t type = data[5];
         if (type < static_cast<uint8_t>(PacketType::InviteBroadcast) ||
-            type > static_cast<uint8_t>(PacketType::MessageAck))
+            type > static_cast<uint8_t>(PacketType::FileExchangeCancel))
         {
             return false;
         }

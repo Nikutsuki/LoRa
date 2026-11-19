@@ -76,7 +76,7 @@ void HardwareTestApp::run()
         // frame for it instead of an incremental update.
         if (session_.consumeResyncRequest())
         {
-            fullRedraw_ = true;
+            uartResyncNeeded_ = true;
             uiDirty_ = true;
         }
 
@@ -166,17 +166,23 @@ void HardwareTestApp::render()
     // invalidations come from radio events that do not change the visible page,
     // so skipping the identical case removes nearly all of the flicker for very
     // little code.
-    const bool unchanged = !fullRedraw_ && lastModel_.sameContent(model);
-    if (!unchanged)
+    const bool localContentChanged = fullRedraw_ || !lastModel_.sameContent(model);
+    if (localContentChanged)
     {
         screen_->present(model);
     }
 
     // The host still needs the frame even when the local display already shows
     // it, because a terminal can attach at any time with its own blank state.
-    if (screen_ != &uartScreen_ && session_.hostSeen() && !unchanged)
+    if (screen_ != &uartScreen_ && session_.hostSeen() && (localContentChanged || uartResyncNeeded_))
     {
-        uartScreen_.present(model);
+        ui::ScreenModel hostModel = model;
+        if (uartResyncNeeded_)
+        {
+            hostModel.setFullRedraw(true);
+        }
+        uartScreen_.present(hostModel);
+        uartResyncNeeded_ = false;
     }
 
     if (!uartScreen_.lastFrameSent())
@@ -212,6 +218,21 @@ void HardwareTestApp::setPage(Page page)
 void HardwareTestApp::preparePage()
 {
     prepareCommon();
+
+    if (fileTransferRole_ != FileTransferRole::None)
+    {
+        ui::Component *popupComponents[] = {
+            &headerBar_,
+            &filePopupTitleLabel_,
+            &fileProgressBarLabel_,
+            &fileProgressStatsLabel_,
+            &fileCancelButton_,
+            &statusBar_
+        };
+        uiPage_.setComponents(popupComponents, sizeof(popupComponents)/sizeof(popupComponents[0]));
+        uiPage_.focusComponent(&fileCancelButton_);
+        return;
+    }
 
     switch (page_)
     {
@@ -582,6 +603,15 @@ void HardwareTestApp::handleKeyEvent(ui::KeyEvent event)
     if (event.key == ui::Key::None)
     {
         return;
+    }
+
+    if (fileTransferRole_ != FileTransferRole::None)
+    {
+        if (event.key == ui::Key::Enter)
+        {
+            canceFileTransfer(true);
+            return;
+        }
     }
 
     if (event.key == ui::Key::Character)
@@ -957,7 +987,61 @@ void HardwareTestApp::handleReceivedPacket()
 
     if (packet.header.type == crypto_chat::PacketType::FileExchangeStart)
     {
-        setNotice("File upload start received", ui::Tone::Focus);
+        char filename[64]{};
+        uint32_t fileSize = 0;
+        if (crypto_chat::InviteProtocol::decodeFileExchangeStart(packet, filename, sizeof(filename), fileSize))
+        {
+            session_.sendFileExchangeStart(filename, fileSize);
+
+            fileTransferRole_ = FileTransferRole::Receiving;
+            uploadingFileSize_ = fileSize;
+            uploadingBytesSent_ = 0;
+            std::snprintf(filePopupTitle_, sizeof(filePopupTitle_), "Receiving: %s", filename);
+            filePopupTitleLabel_.setText(filePopupTitle_);
+            updateFileProgress(0, fileSize);
+            fullRedraw_ = true;
+            invalidate();
+
+            setNotice("Receiving file...", ui::Tone::Focus);
+        }
+        return;
+    }
+
+    if (packet.header.type == crypto_chat::PacketType::FileExchangeData)
+    {
+        uint32_t chunkIndex = 0;
+        const uint8_t *chunkData = nullptr;
+        size_t chunkLen = 0;
+        if (crypto_chat::InviteProtocol::decodeFileExchangeData(packet, chunkIndex, chunkData, chunkLen))
+        {
+            session_.sendFileExchangeData(chunkIndex, chunkData, chunkLen);
+
+            uploadingBytesSent_ += chunkLen;
+            updateFileProgress(uploadingBytesSent_, uploadingFileSize_);
+            invalidate();
+
+            setNotice("Receiving file chunks...", ui::Tone::Focus);
+        }
+        return;
+    }
+
+    if (packet.header.type == crypto_chat::PacketType::FileExchangeEnd)
+    {
+        session_.sendFileExchangeEnd();
+
+        fileTransferRole_ = FileTransferRole::None;
+        fullRedraw_ = true;
+        invalidate();
+
+        setNotice("File received (100%)", ui::Tone::Success);
+        return;
+    }
+
+    if (packet.header.type == crypto_chat::PacketType::FileExchangeCancel)
+    {
+        this->canceFileTransfer(false);
+        setNotice("Peer cancelled file transfer", ui::Tone::Danger);
+        return;
     }
 
     if (packet.header.type == crypto_chat::PacketType::InviteBroadcast || packet.header.type == crypto_chat::PacketType::InviteAccept)
@@ -1032,6 +1116,18 @@ void HardwareTestApp::pollFileExchange()
     if (session_.nextFileData(dataMsg))
     {
         sendFileChunk(dataMsg);
+    }
+
+    if (session_.nextFileEnd())
+    {
+        sendFileEnd();
+        return;
+    }
+
+    if (session_.nextFileCancel())
+    {
+        canceFileTransfer(true);
+        return;
     }
 }
 
@@ -1294,12 +1390,20 @@ void HardwareTestApp::sendFileStart(const proto::FileExchangeStartMessage &msg)
 
     if (!radio_.sendPacket(packet, packetLength))
     {
-        awaitingFileTxAck_ = true;
-        pendingFileAckChunk_ = 0;
+        session_.sendExchangeAck(0, 3);
         return;
     }
 
-    session_.sendExchangeAck(0, 0);
+    awaitingFileTxAck_ = true;
+    pendingFileAckChunk_ = 0;
+
+    fileTransferRole_ = FileTransferRole::Sending;
+    std::snprintf(filePopupTitle_, sizeof(filePopupTitle_), "Sending: %s", uploadingFilename_);
+    filePopupTitleLabel_.setText(filePopupTitle_);
+    updateFileProgress(0, uploadingFileSize_);
+    fullRedraw_ = true;
+    invalidate();
+
     setNotice("File transfer started", ui::Tone::Focus);
 }
 
@@ -1325,6 +1429,7 @@ void HardwareTestApp::sendFileChunk(const proto::FileExchangeDataMessage &msg)
             packet, sizeof(packet), packetLength))
     {
         session_.sendExchangeAck(msg.chunkIndex, 2);
+        return;
     }
 
     if (!radio_.sendPacket(packet, packetLength))
@@ -1337,13 +1442,94 @@ void HardwareTestApp::sendFileChunk(const proto::FileExchangeDataMessage &msg)
     awaitingFileTxAck_ = true;
     pendingFileAckChunk_ = msg.chunkIndex;
 
+    updateFileProgress(uploadingBytesSent_, uploadingFileSize_);
+    invalidate();
+
     if (uploadingFileSize_ > 0)
     {
-        int percent = static_cast<int>((uploadingBytesSent_ * 1000ULL) / uploadingFileSize_);
+        int percent = static_cast<int>((uploadingBytesSent_ * 100ULL) / uploadingFileSize_);
         if (percent > 100)
             percent = 100;
         char status[64];
         std::snprintf(status, sizeof(status), "Sending %s (%d%%)", uploadingFilename_, percent);
         setNotice(status, ui::Tone::Focus);
     }
+}
+
+void HardwareTestApp::sendFileEnd()
+{
+    const crypto_chat::Contact *contact = selectedContact();
+    if (contact == nullptr) return;
+
+    uint8_t packet[crypto_chat::MaxPacketSize];
+    size_t packetLength = 0;
+
+    if (!crypto_chat::InviteProtocol::encodeFileExchangeEnd(
+        contacts_.identity().deviceId,
+        contact->deviceId,
+        sequence_++,
+        packet, sizeof(packet), packetLength
+    )) return;
+
+    if (!radio_.sendPacket(packet, packetLength)) return;
+
+    fileTransferRole_ = FileTransferRole::None;
+    fullRedraw_ = true;
+    setNotice("File transfer complete", ui::Tone::Success);
+    invalidate();
+
+    setNotice("File transfer complete", ui::Tone::Success);
+}
+
+void HardwareTestApp::canceFileTransfer(bool notifyPeer)
+{
+    if (fileTransferRole_ == FileTransferRole::None) return;
+
+    if (notifyPeer)
+    {
+        const crypto_chat::Contact *contact = selectedContact();
+        if (contact != nullptr)
+        {
+            uint8_t packet[crypto_chat::MaxPacketSize];
+            size_t packetLength = 0;
+            if (crypto_chat::InviteProtocol::encodeFileExchangeCancel(
+                contacts_.identity().deviceId, contact->deviceId, sequence_++, packet, sizeof(packet), packetLength
+            )) radio_.sendPacket(packet, packetLength);
+        }
+    }
+
+    fileTransferRole_ = FileTransferRole::None;
+    uploadingFileSize_ = 0;
+    uploadingBytesSent_ = 0;
+    uploadingFileSize_ = 0;
+    uploadingBytesSent_ = 0;
+    awaitingFileTxAck_ = false;
+
+    session_.sendFileExchangeCancel();
+
+    fullRedraw_ = true;
+
+    setNotice("File tranfer cancelled", ui::Tone::Danger);
+    invalidate();
+}
+
+void HardwareTestApp::updateFileProgress(uint32_t current, uint32_t total)
+{
+    int percent = (total > 0) ? (current * 100ULL) / total : 0;
+    if (percent > 100) percent = 100;
+
+    char bar[24]{};
+    bar[0] = '[';
+    int filled = (percent * 20) / 100;
+    for (int i = 0; i < 20; i++) {
+        bar[1 + i] = (i < filled) ? '=' : ' ';
+    }
+
+    bar[21] = ']';
+    bar[22] = '\0';
+    std::strcpy(fileProgressBarText_, bar);
+    fileProgressBarLabel_.setText(fileProgressBarText_);
+
+    std::snprintf(fileProgressStats_, sizeof(fileProgressStats_), "%d%% (%lu / %lu B)", percent, static_cast<unsigned long>(current), static_cast<unsigned long>(total));
+    fileProgressStatsLabel_.setText(fileProgressStats_);
 }
