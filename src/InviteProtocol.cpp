@@ -163,25 +163,46 @@ namespace crypto_chat
         return true;
     }
 
-    bool InviteProtocol::encodeFileExchangeStart(const uint8_t senderDeviceId[DeviceIdSize], const uint8_t recipientDeviceId[DeviceIdSize], uint32_t sequence, const char *filename, uint32_t fileSize, uint8_t *out, size_t capacity, size_t &outLength)
+    bool InviteProtocol::encodeFileExchangeStart(const DeviceIdentity &sender, const Contact &recipient, uint32_t sequence, const uint8_t fileKey[32], const char *filename, uint32_t fileSize, uint8_t *out, size_t capacity, size_t &outLength)
     {
         size_t nameLen = (filename != nullptr) ? std::strlen(filename) : 0;
-        size_t payloadLength = 4 + nameLen;
+        if (nameLen > 64) nameLen = 64;
 
+        uint8_t plainText[32 + 4 + 1 + 64];
+        size_t plainLen = 32 + 4 + 1 + nameLen;
+
+        std::memcpy(plainText, fileKey, 32);
+        putU32(plainText + 32, fileSize);
+        plainText[36] = static_cast<uint8_t>(nameLen);
+        std::memcpy(plainText + 37, filename, nameLen);
+
+        size_t payloadLength = NonceSize + MacSize + plainLen;
         if (capacity < HeaderSize + payloadLength || payloadLength > 255)
             return false;
 
         PacketHeader header{};
         header.type = PacketType::FileExchangeStart;
-        std::memcpy(header.senderDeviceId, senderDeviceId, DeviceIdSize);
-        std::memcpy(header.recipientDeviceId, recipientDeviceId, DeviceIdSize);
+        std::memcpy(header.senderDeviceId, sender.deviceId, DeviceIdSize);
+        std::memcpy(header.recipientDeviceId, recipient.deviceId, DeviceIdSize);
         header.sequence = sequence;
         header.payloadLength = static_cast<uint8_t>(payloadLength);
         writeHeader(header, out);
 
         uint8_t *payload = out + HeaderSize;
-        putU32(payload, fileSize);
-        std::memcpy(payload + 4, filename, nameLen);
+        uint8_t *nonce = payload;
+        uint8_t *mac = payload + NonceSize;
+        uint8_t *cipherText = payload + NonceSize + MacSize;
+
+        CryptoBox::makeNonce(nonce, sender.deviceId, recipient.deviceId, sequence);
+
+        uint8_t ad[HeaderSize];
+        writeHeader(header, ad);
+
+        if (!CryptoBox::encryptForContact(sender, recipient, nonce, ad, HeaderSize,
+                                          plainText, plainLen, cipherText, mac))
+        {
+            return false;
+        }
 
         outLength = HeaderSize + payloadLength;
         return true;
@@ -331,13 +352,31 @@ namespace crypto_chat
         return true;
     }
 
-    bool InviteProtocol::decodeFileExchangeStart(const DecodedPacket &packet, char *filename, size_t maxFilenameLen, uint32_t &fileSize)
+    bool InviteProtocol::decodeFileExchangeStart(const DeviceIdentity &recipient, const Contact &sender, const DecodedPacket &packet, uint8_t fileKey[32], char *filename, size_t maxFilenameLen, uint32_t &fileSize)
     {
-        if (packet.payloadLength < 4) return false;
-        fileSize = getU32(packet.payload);
-        size_t nameLen = packet.payloadLength - 4;
+        if (packet.payloadLength < NonceSize + MacSize + 37) return false;
+
+        const uint8_t *nonce = packet.payload;
+        const uint8_t *mac = packet.payload + NonceSize;
+        const uint8_t *cipherText = packet.payload + NonceSize + MacSize;
+        size_t cipherLen = packet.payloadLength - (NonceSize + MacSize);
+
+        uint8_t ad[HeaderSize];
+        writeHeader(packet.header, ad);
+
+        uint8_t plainText[MaxPlainTextSize];
+        if (!CryptoBox::decryptFromContact(recipient, sender, nonce, ad, HeaderSize,
+                                           cipherText, cipherLen, mac, plainText))
+        {
+            return false;
+        }
+
+        std::memcpy(fileKey, plainText, 32);
+        fileSize = getU32(plainText + 32);
+        uint8_t nameLen = plainText[36];
         if (nameLen >= maxFilenameLen) nameLen = maxFilenameLen - 1;
-        std::memcpy(filename, packet.payload + 4, nameLen);
+
+        std::memcpy(filename, plainText + 37, nameLen);
         filename[nameLen] = '\0';
         return true;
     }

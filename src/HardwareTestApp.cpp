@@ -987,9 +987,12 @@ void HardwareTestApp::handleReceivedPacket()
 
     if (packet.header.type == crypto_chat::PacketType::FileExchangeStart)
     {
+        const crypto_chat::Contact *contact = contacts_.findByDeviceId(packet.header.senderDeviceId);
+        if (contact == nullptr) return;
+
         char filename[64]{};
         uint32_t fileSize = 0;
-        if (crypto_chat::InviteProtocol::decodeFileExchangeStart(packet, filename, sizeof(filename), fileSize))
+        if (crypto_chat::InviteProtocol::decodeFileExchangeStart(contacts_.identity(), *contact, packet, currentFileKey_, filename, sizeof(filename), fileSize))
         {
             session_.sendFileExchangeStart(filename, fileSize);
 
@@ -1014,7 +1017,13 @@ void HardwareTestApp::handleReceivedPacket()
         size_t chunkLen = 0;
         if (crypto_chat::InviteProtocol::decodeFileExchangeData(packet, chunkIndex, chunkData, chunkLen))
         {
-            session_.sendFileExchangeData(chunkIndex, chunkData, chunkLen);
+            uint8_t decryptedChunk[256];
+            if (chunkLen <= sizeof(decryptedChunk))
+            {
+                crypto_chat::CryptoBox::decryptFileChunk(currentFileKey_, chunkIndex,
+                                                         chunkData, decryptedChunk, chunkLen);
+                session_.sendFileExchangeData(chunkIndex, decryptedChunk, chunkLen);
+            }
 
             uploadingBytesSent_ += chunkLen;
             updateFileProgress(uploadingBytesSent_, uploadingFileSize_);
@@ -1373,13 +1382,22 @@ void HardwareTestApp::sendFileStart(const proto::FileExchangeStartMessage &msg)
     uploadingFileSize_ = msg.fileSize;
     uploadingBytesSent_ = 0;
 
+    // Generate random ephemeral file key
+    uint8_t seedMaterial[40]{};
+    std::memcpy(seedMaterial, contacts_.identity().deviceId, crypto_chat::DeviceIdSize);
+    uint64_t now = to_us_since_boot(get_absolute_time());
+    std::memcpy(seedMaterial + 8, &now, sizeof(now));
+    std::memcpy(seedMaterial + 16, &sequence_, sizeof(sequence_));
+    crypto_chat::CryptoBox::hash32(currentFileKey_, seedMaterial, sizeof(seedMaterial));
+
     uint8_t packet[crypto_chat::MaxPacketSize];
     size_t packetLength = 0;
 
     if (!crypto_chat::InviteProtocol::encodeFileExchangeStart(
-            contacts_.identity().deviceId,
-            contact->deviceId,
+            contacts_.identity(),
+            *contact,
             sequence_++,
+            currentFileKey_,
             uploadingFilename_,
             uploadingFileSize_,
             packet, sizeof(packet), packetLength))
@@ -1416,6 +1434,16 @@ void HardwareTestApp::sendFileChunk(const proto::FileExchangeDataMessage &msg)
         return;
     }
 
+    uint8_t encryptedChunk[256];
+    if (msg.length > sizeof(encryptedChunk))
+    {
+        session_.sendExchangeAck(msg.chunkIndex, 2);
+        return;
+    }
+
+    crypto_chat::CryptoBox::encryptFileChunk(currentFileKey_, msg.chunkIndex,
+                                             msg.chunkData, encryptedChunk, msg.length);
+
     uint8_t packet[crypto_chat::MaxPacketSize];
     size_t packetLength = 0;
 
@@ -1424,7 +1452,7 @@ void HardwareTestApp::sendFileChunk(const proto::FileExchangeDataMessage &msg)
             contact->deviceId,
             sequence_++,
             msg.chunkIndex,
-            msg.chunkData,
+            encryptedChunk,
             msg.length,
             packet, sizeof(packet), packetLength))
     {
@@ -1474,6 +1502,7 @@ void HardwareTestApp::sendFileEnd()
     if (!radio_.sendPacket(packet, packetLength)) return;
 
     fileTransferRole_ = FileTransferRole::None;
+    std::memset(currentFileKey_, 0, sizeof(currentFileKey_));
     fullRedraw_ = true;
     setNotice("File transfer complete", ui::Tone::Success);
     invalidate();
@@ -1501,9 +1530,8 @@ void HardwareTestApp::canceFileTransfer(bool notifyPeer)
     fileTransferRole_ = FileTransferRole::None;
     uploadingFileSize_ = 0;
     uploadingBytesSent_ = 0;
-    uploadingFileSize_ = 0;
-    uploadingBytesSent_ = 0;
     awaitingFileTxAck_ = false;
+    std::memset(currentFileKey_, 0, sizeof(currentFileKey_));
 
     session_.sendFileExchangeCancel();
 

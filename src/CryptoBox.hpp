@@ -57,6 +57,12 @@ public:
                              PacketType type,
                              const uint8_t signature[SignatureSize]);
 
+    static void encryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
+                                 const uint8_t *input, uint8_t *output, size_t length);
+
+    static void decryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
+                                 const uint8_t *input, uint8_t *output, size_t length);
+
 private:
     static void deriveSharedKey(uint8_t out[32],
                                 const uint8_t ownSecretKey[SecretKeySize],

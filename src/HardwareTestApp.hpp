@@ -224,6 +224,7 @@ private:
 
     enum class FileTransferRole { None, Sending, Receiving };
     FileTransferRole fileTransferRole_ = FileTransferRole::None;
+    uint8_t currentFileKey_[32]{};
     char filePopupTitle_[48]{};
     char fileProgressBarText_[36]{};
     char fileProgressStats_[36]{};

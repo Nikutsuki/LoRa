@@ -190,4 +190,22 @@ size_t CryptoBox::inviteMessage(uint8_t *out, const Contact &contact, PacketType
     return static_cast<size_t>(cursor - out);
 }
 
+void CryptoBox::encryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
+                                 const uint8_t *input, uint8_t *output, size_t length)
+{
+    uint8_t nonce[12]{};
+    nonce[0] = static_cast<uint8_t>(chunkIndex & 0xFF);
+    nonce[1] = static_cast<uint8_t>((chunkIndex >> 8) & 0xFF);
+    nonce[2] = static_cast<uint8_t>((chunkIndex >> 16) & 0xFF);
+    nonce[3] = static_cast<uint8_t>((chunkIndex >> 24) & 0xFF);
+
+    crypto_chacha20_ietf(output, input, length, key, nonce, 0);
+}
+
+void CryptoBox::decryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
+                                 const uint8_t *input, uint8_t *output, size_t length)
+{
+    encryptFileChunk(key, chunkIndex, input, output, length);
+}
+
 }
