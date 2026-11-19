@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "CryptoBox.hpp"
+#include "monocypher.h"
 
 namespace crypto_chat
 {
@@ -49,6 +50,7 @@ namespace crypto_chat
                                       PacketType type,
                                       const uint8_t recipientDeviceId[DeviceIdSize],
                                       uint32_t sequence,
+                                      const uint8_t *pairingKey,
                                       uint8_t *out,
                                       size_t capacity,
                                       size_t &outLength)
@@ -57,7 +59,9 @@ namespace crypto_chat
         {
             return false;
         }
-        if (capacity < HeaderSize + InvitePayloadSize)
+
+        const size_t totalPayloadSize = (pairingKey != nullptr) ? (NonceSize + MacSize + InvitePayloadSize) : InvitePayloadSize;
+        if (capacity < HeaderSize + totalPayloadSize || totalPayloadSize > 255)
         {
             return false;
         }
@@ -67,19 +71,40 @@ namespace crypto_chat
         std::memcpy(header.senderDeviceId, identity.deviceId, DeviceIdSize);
         std::memcpy(header.recipientDeviceId, recipientDeviceId, DeviceIdSize);
         header.sequence = sequence;
-        header.payloadLength = InvitePayloadSize;
+        header.payloadLength = static_cast<uint8_t>(totalPayloadSize);
         writeHeader(header, out);
 
-        uint8_t *payload = out + HeaderSize;
-        std::memcpy(payload, identity.nickname, NicknameSize);
-        payload += NicknameSize;
-        std::memcpy(payload, identity.signingPublicKey, PublicKeySize);
-        payload += PublicKeySize;
-        std::memcpy(payload, identity.boxPublicKey, PublicKeySize);
-        payload += PublicKeySize;
-        CryptoBox::signInvite(identity, type, payload);
+        uint8_t rawInvite[InvitePayloadSize];
+        uint8_t *cursor = rawInvite;
+        std::memcpy(cursor, identity.nickname, NicknameSize);
+        cursor += NicknameSize;
+        std::memcpy(cursor, identity.signingPublicKey, PublicKeySize);
+        cursor += PublicKeySize;
+        std::memcpy(cursor, identity.boxPublicKey, PublicKeySize);
+        cursor += PublicKeySize;
+        CryptoBox::signInvite(identity, type, cursor);
 
-        outLength = HeaderSize + InvitePayloadSize;
+        uint8_t *payload = out + HeaderSize;
+
+        if (pairingKey != nullptr)
+        {
+            uint8_t *nonce = payload;
+            uint8_t *mac = payload + NonceSize;
+            uint8_t *cipherText = payload + NonceSize + MacSize;
+
+            CryptoBox::makeNonce(nonce, identity.deviceId, recipientDeviceId, sequence);
+
+            uint8_t ad[HeaderSize];
+            writeHeader(header, ad);
+
+            crypto_aead_lock(cipherText, mac, pairingKey, nonce, ad, HeaderSize, rawInvite, InvitePayloadSize);
+        }
+        else
+        {
+            std::memcpy(payload, rawInvite, InvitePayloadSize);
+        }
+
+        outLength = HeaderSize + totalPayloadSize;
         return true;
     }
 
@@ -282,10 +307,39 @@ namespace crypto_chat
         return true;
     }
 
-    bool InviteProtocol::decodeInvitePayload(const DecodedPacket &packet, Contact &contact)
+    bool InviteProtocol::decodeInvitePayload(const DecodedPacket &packet, const uint8_t *pairingKey, Contact &contact)
     {
-        if ((packet.header.type != PacketType::InviteBroadcast && packet.header.type != PacketType::InviteAccept) ||
-            packet.payloadLength != InvitePayloadSize)
+        if (packet.header.type != PacketType::InviteBroadcast && packet.header.type != PacketType::InviteAccept)
+        {
+            return false;
+        }
+
+        uint8_t rawInvite[InvitePayloadSize];
+
+        if (packet.payloadLength == NonceSize + MacSize + InvitePayloadSize)
+        {
+            if (pairingKey == nullptr)
+            {
+                return false; // Encrypted invite requires password key
+            }
+
+            const uint8_t *nonce = packet.payload;
+            const uint8_t *mac = packet.payload + NonceSize;
+            const uint8_t *cipherText = packet.payload + NonceSize + MacSize;
+
+            uint8_t ad[HeaderSize];
+            writeHeader(packet.header, ad);
+
+            if (crypto_aead_unlock(rawInvite, mac, pairingKey, nonce, ad, HeaderSize, cipherText, InvitePayloadSize) != 0)
+            {
+                return false; // Wrong password or corrupted payload
+            }
+        }
+        else if (packet.payloadLength == InvitePayloadSize)
+        {
+            std::memcpy(rawInvite, packet.payload, InvitePayloadSize);
+        }
+        else
         {
             return false;
         }
@@ -293,7 +347,7 @@ namespace crypto_chat
         std::memset(&contact, 0, sizeof(contact));
         contact.valid = true;
         std::memcpy(contact.deviceId, packet.header.senderDeviceId, DeviceIdSize);
-        const uint8_t *payload = packet.payload;
+        const uint8_t *payload = rawInvite;
         std::memcpy(contact.nickname, payload, NicknameSize);
         contact.nickname[NicknameSize - 1] = '\0';
         payload += NicknameSize;

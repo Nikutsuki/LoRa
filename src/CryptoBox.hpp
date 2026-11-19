@@ -63,6 +63,8 @@ public:
     static void decryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
                                  const uint8_t *input, uint8_t *output, size_t length);
 
+    static void derivePasswordKey(uint8_t out[32], const char *password, size_t passwordLength);
+
 private:
     static void deriveSharedKey(uint8_t out[32],
                                 const uint8_t ownSecretKey[SecretKeySize],

@@ -21,6 +21,7 @@ namespace crypto_chat
             PacketType type,
             const uint8_t recipientDeviceId[DeviceIdSize],
             uint32_t sequence,
+            const uint8_t *pairingKey, // nullptr if plaintext, 32 bytes if password protected
             uint8_t *out,
             size_t capacity,
             size_t &outLength);
@@ -76,7 +77,7 @@ namespace crypto_chat
         );
 
         static bool decode(const uint8_t *packet, size_t packetLength, DecodedPacket &decoded);
-        static bool decodeInvitePayload(const DecodedPacket &packet, Contact &contact);
+        static bool decodeInvitePayload(const DecodedPacket &packet, const uint8_t *pairingKey, Contact &contact);
         static bool decodeEncryptedMessage(
             const DeviceIdentity &identity,
             const Contact &contact,

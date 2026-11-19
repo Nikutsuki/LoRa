@@ -513,7 +513,7 @@ void HardwareTestApp::prepareContactsPage()
 
 void HardwareTestApp::prepareInvitePage()
 {
-    std::strncpy(pageTitle_, "Invite", sizeof(pageTitle_) - 1);
+    std::strncpy(pageTitle_, "Invite (Password Pair)", sizeof(pageTitle_) - 1);
     pageTitleLabel_.setText(pageTitle_);
 
     if (hasPendingInvite_)
@@ -521,18 +521,26 @@ void HardwareTestApp::prepareInvitePage()
         char fingerprint[20];
         fingerprintText(pendingInvite_.fingerprint, fingerprint, sizeof(fingerprint));
         std::snprintf(inviteLine_, sizeof(inviteLine_), "Pending: %s", pendingInvite_.nickname);
-        std::snprintf(inviteMeta_, sizeof(inviteMeta_), "Fingerprint: %s\r\nAccept to pair",
-                      fingerprint);
+        std::snprintf(inviteMeta_, sizeof(inviteMeta_), "Fingerprint: %s", fingerprint);
         primaryLabel_.setTone(ui::Tone::Focus);
+    }
+    else if (hasPendingEncryptedInvite_)
+    {
+        std::strncpy(inviteLine_, "Pending: [Encrypted Invite]", sizeof(inviteLine_) - 1);
+        std::strncpy(inviteMeta_, "Enter password below & press Accept", sizeof(inviteMeta_) - 1);
+        primaryLabel_.setTone(ui::Tone::Accent);
     }
     else
     {
         std::strncpy(inviteLine_, "No pending invite", sizeof(inviteLine_) - 1);
-        std::strncpy(inviteMeta_, "Broadcast to pair nearby devices", sizeof(inviteMeta_) - 1);
+        std::strncpy(inviteMeta_, "Enter password to broadcast/accept", sizeof(inviteMeta_) - 1);
         primaryLabel_.setTone(ui::Tone::Muted);
     }
     primaryLabel_.setText(inviteLine_);
     inviteDetailLabel_.setText(inviteMeta_);
+
+    std::snprintf(inputHint_, sizeof(inputHint_), "Pass: %s", input_);
+    inputBox_.setText(inputHint_);
 
     ui::Component *components[] = {
         &headerBar_,
@@ -540,6 +548,7 @@ void HardwareTestApp::prepareInvitePage()
         &pageTitleLabel_,
         &primaryLabel_,
         &inviteDetailLabel_,
+        &inputBox_,
         &broadcastButton_,
         &acceptButton_,
         &backButton_,
@@ -616,7 +625,7 @@ void HardwareTestApp::handleKeyEvent(ui::KeyEvent event)
 
     if (event.key == ui::Key::Character)
     {
-        if ((page_ == Page::Chat || page_ == Page::Identity) && inputLength_ < InputMax - 1)
+        if ((page_ == Page::Chat || page_ == Page::Identity || page_ == Page::Invite) && inputLength_ < InputMax - 1)
         {
             input_[inputLength_++] = event.character;
             input_[inputLength_] = '\0';
@@ -627,7 +636,7 @@ void HardwareTestApp::handleKeyEvent(ui::KeyEvent event)
 
     if (event.key == ui::Key::Backspace)
     {
-        if ((page_ == Page::Chat || page_ == Page::Identity) && inputLength_ > 0)
+        if ((page_ == Page::Chat || page_ == Page::Identity || page_ == Page::Invite) && inputLength_ > 0)
         {
             input_[--inputLength_] = '\0';
             invalidate();
@@ -795,11 +804,19 @@ void HardwareTestApp::handleCommand()
 
 void HardwareTestApp::sendInvite()
 {
+    uint8_t pairingKey[32];
+    const uint8_t *keyPtr = nullptr;
+    if (inputLength_ > 0)
+    {
+        crypto_chat::CryptoBox::derivePasswordKey(pairingKey, input_, inputLength_);
+        keyPtr = pairingKey;
+    }
+
     uint8_t packet[crypto_chat::MaxPacketSize];
     size_t packetLength = 0;
     if (!crypto_chat::InviteProtocol::encodeInvite(contacts_.identity(), crypto_chat::PacketType::InviteBroadcast,
                                                    crypto_chat::InviteProtocol::BroadcastDeviceId,
-                                                   sequence_++, packet, sizeof(packet), packetLength))
+                                                   sequence_++, keyPtr, packet, sizeof(packet), packetLength))
     {
         setNotice("Invite encode failed", ui::Tone::Danger);
         return;
@@ -809,7 +826,7 @@ void HardwareTestApp::sendInvite()
         setNotice("Invite TX rejected", ui::Tone::Danger);
         return;
     }
-    setNotice("Invite sent", ui::Tone::Success);
+    setNotice(keyPtr != nullptr ? "Password invite sent" : "Open invite sent", ui::Tone::Success);
 }
 
 void HardwareTestApp::sendAck(const uint8_t recipientDeviceId[crypto_chat::DeviceIdSize], uint32_t sequence)
@@ -831,6 +848,34 @@ void HardwareTestApp::sendAck(const uint8_t recipientDeviceId[crypto_chat::Devic
 
 void HardwareTestApp::acceptPendingInvite()
 {
+    uint8_t pairingKey[32];
+    const uint8_t *keyPtr = nullptr;
+    if (inputLength_ > 0)
+    {
+        crypto_chat::CryptoBox::derivePasswordKey(pairingKey, input_, inputLength_);
+        keyPtr = pairingKey;
+    }
+
+    if (hasPendingEncryptedInvite_)
+    {
+        if (keyPtr == nullptr)
+        {
+            setNotice("Enter password to accept", ui::Tone::Danger);
+            return;
+        }
+
+        crypto_chat::Contact decryptedContact;
+        if (!crypto_chat::InviteProtocol::decodeInvitePayload(pendingEncryptedPacket_, keyPtr, decryptedContact))
+        {
+            setNotice("Wrong password!", ui::Tone::Danger);
+            return;
+        }
+
+        pendingInvite_ = decryptedContact;
+        hasPendingEncryptedInvite_ = false;
+        hasPendingInvite_ = true;
+    }
+
     if (!hasPendingInvite_)
     {
         setNotice("No pending invite", ui::Tone::Danger);
@@ -855,12 +900,17 @@ void HardwareTestApp::acceptPendingInvite()
     size_t packetLength = 0;
     if (crypto_chat::InviteProtocol::encodeInvite(contacts_.identity(), crypto_chat::PacketType::InviteAccept,
                                                   pendingInvite_.deviceId, sequence_++,
-                                                  packet, sizeof(packet), packetLength))
+                                                  keyPtr, packet, sizeof(packet), packetLength))
     {
         radio_.sendPacket(packet, packetLength);
     }
     hasPendingInvite_ = false;
-    setNotice("Contact accepted", ui::Tone::Success);
+    hasPendingEncryptedInvite_ = false;
+
+    std::memset(input_, 0, sizeof(input_));
+    inputLength_ = 0;
+
+    setNotice("Contact accepted & paired", ui::Tone::Success);
 }
 
 void HardwareTestApp::selectNextContact()
@@ -1055,29 +1105,56 @@ void HardwareTestApp::handleReceivedPacket()
 
     if (packet.header.type == crypto_chat::PacketType::InviteBroadcast || packet.header.type == crypto_chat::PacketType::InviteAccept)
     {
+        uint8_t pairingKey[32];
+        const uint8_t *keyPtr = nullptr;
+        if (inputLength_ > 0)
+        {
+            crypto_chat::CryptoBox::derivePasswordKey(pairingKey, input_, inputLength_);
+            keyPtr = pairingKey;
+        }
+
         crypto_chat::Contact contact;
-        if (!crypto_chat::InviteProtocol::decodeInvitePayload(packet, contact))
+        if (crypto_chat::InviteProtocol::decodeInvitePayload(packet, keyPtr, contact))
         {
-            setNotice("Bad invite signature", ui::Tone::Danger);
+            if (contacts_.nicknameCollisionWithDifferentKey(contact))
+            {
+                setNotice("Impersonation invite rejected", ui::Tone::Danger);
+                return;
+            }
+            if (packet.header.type == crypto_chat::PacketType::InviteAccept)
+            {
+                contacts_.upsertContact(contact);
+                contacts_.save();
+                setNotice("Invite accepted by peer", ui::Tone::Success);
+                return;
+            }
+            pendingInvite_ = contact;
+            hasPendingInvite_ = true;
+            hasPendingEncryptedInvite_ = false;
+            char status[64];
+            std::snprintf(status, sizeof(status), "Invite from %s", contact.nickname);
+            setNotice(status, ui::Tone::Focus);
+            invalidate();
             return;
         }
-        if (contacts_.nicknameCollisionWithDifferentKey(contact))
+
+        // If decoding failed and it's an encrypted invite, save packet for user to enter password
+        if (packet.payloadLength == crypto_chat::NonceSize + crypto_chat::MacSize + (crypto_chat::NicknameSize + crypto_chat::PublicKeySize + crypto_chat::PublicKeySize + crypto_chat::SignatureSize))
         {
-            setNotice("Impersonation invite rejected", ui::Tone::Danger);
+            pendingEncryptedPacket_ = packet;
+            if (packet.payloadLength <= sizeof(pendingEncryptedPayload_))
+            {
+                std::memcpy(pendingEncryptedPayload_, packet.payload, packet.payloadLength);
+                pendingEncryptedPacket_.payload = pendingEncryptedPayload_;
+            }
+            hasPendingEncryptedInvite_ = true;
+            hasPendingInvite_ = false;
+            setNotice("Encrypted invite received! Enter pass", ui::Tone::Focus);
+            invalidate();
             return;
         }
-        if (packet.header.type == crypto_chat::PacketType::InviteAccept)
-        {
-            contacts_.upsertContact(contact);
-            contacts_.save();
-            setNotice("Invite accepted by peer", ui::Tone::Success);
-            return;
-        }
-        pendingInvite_ = contact;
-        hasPendingInvite_ = true;
-        char status[64];
-        std::snprintf(status, sizeof(status), "Invite from %s", contact.nickname);
-        setNotice(status, ui::Tone::Focus);
+
+        setNotice("Bad invite payload/key", ui::Tone::Danger);
         return;
     }
 

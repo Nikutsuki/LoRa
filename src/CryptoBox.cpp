@@ -208,4 +208,28 @@ void CryptoBox::decryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
     encryptFileChunk(key, chunkIndex, input, output, length);
 }
 
+void CryptoBox::derivePasswordKey(uint8_t out[32], const char *password, size_t passwordLength)
+{
+    static const uint8_t Salt[16] = {
+        'L', 'o', 'R', 'a', 'C', 'h', 'a', 't', 'P', 'a', 'i', 'r', 'S', 'a', 'l', 't'
+    };
+
+    // 16 KB work area is fast (<50ms) and lightweight on RP2040 (264KB RAM)
+    static uint32_t workArea[4096]; // 16 KB
+
+    crypto_argon2_config config;
+    config.algorithm = CRYPTO_ARGON2_ID;
+    config.nb_blocks = 16;  // 16 KB
+    config.nb_passes = 2;   // 2 passes
+    config.nb_lanes = 1;
+
+    crypto_argon2_inputs inputs;
+    inputs.pass = reinterpret_cast<const uint8_t *>(password);
+    inputs.pass_size = static_cast<uint32_t>(passwordLength);
+    inputs.salt = Salt;
+    inputs.salt_size = sizeof(Salt);
+
+    crypto_argon2(out, 32, workArea, config, inputs, crypto_argon2_no_extras);
+}
+
 }

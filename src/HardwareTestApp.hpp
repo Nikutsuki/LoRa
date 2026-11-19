@@ -150,6 +150,9 @@ private:
     uint32_t sequence_ = 1;
     bool awaitingAck_ = false;
     bool hasPendingInvite_ = false;
+    bool hasPendingEncryptedInvite_ = false;
+    crypto_chat::DecodedPacket pendingEncryptedPacket_{};
+    uint8_t pendingEncryptedPayload_[crypto_chat::MaxPacketSize]{};
     bool geometryAnnounced_ = false;
     bool uiDirty_ = true;
     bool fullRedraw_ = true;
