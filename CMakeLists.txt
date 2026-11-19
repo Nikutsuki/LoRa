@@ -79,6 +79,7 @@ add_executable(pico_lora_messenger
     src/Ili9341Display.cpp
     src/CardKbKeyboard.cpp
     src/CryptoBox.cpp
+    src/FileUploadManager.cpp
     src/InviteProtocol.cpp
     src/ContactStore.cpp
     src/ChatHistory.cpp

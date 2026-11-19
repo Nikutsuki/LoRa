@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/sqweek/dialog"
 	"github.com/user/lora-tui/internal/device"
 	"github.com/user/lora-tui/internal/theme"
 )
@@ -32,6 +33,7 @@ type DeviceModel struct {
 	status    string
 	width     int
 	height    int
+	fileData  []byte
 }
 
 // connectingStatus is the placeholder shown until the device says something.
@@ -63,6 +65,15 @@ func (m *DeviceModel) Init() tea.Cmd {
 	return waitForDeviceEvent(m.session.Events())
 }
 
+func (m *DeviceModel) FileDialog() (string, error) {
+	filePath, err := dialog.File().Title("Select a file").Load()
+	if err != nil {
+		return "", fmt.Errorf("file dialog: %w", err)
+	}
+
+	return filePath, nil
+}
+
 // Update reacts to keys and device events.
 func (m *DeviceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -78,6 +89,14 @@ func (m *DeviceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
+		} else if msg.String() == "ctrl+u" {
+			filePath, err := m.FileDialog()
+			if err != nil {
+				m.status = fmt.Sprintf("File dialog error: %v", err)
+				return m, nil
+			}
+
+			go m.session.UploadFile(filePath)
 		}
 		code, character, ok := mapKey(msg)
 		if !ok {

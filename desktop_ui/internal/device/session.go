@@ -2,6 +2,9 @@ package device
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -52,6 +55,7 @@ type Session struct {
 	// and a transport whose buffer is full blocks on Write (an unbuffered pipe
 	// blocks outright), so unchecked concurrent writes can wedge the link.
 	writeMu sync.Mutex
+	ackChan chan FileExchangeAckMessage
 }
 
 // Start opens the session on an already connected transport.
@@ -62,9 +66,10 @@ type Session struct {
 // keeps doing so, which also recovers if a single frame is ever lost.
 func Start(transport Transport) *Session {
 	s := &Session{
-		link:   NewLink(transport),
-		events: make(chan Event, 16),
-		done:   make(chan struct{}),
+		link:    NewLink(transport),
+		events:  make(chan Event, 16),
+		done:    make(chan struct{}),
+		ackChan: make(chan FileExchangeAckMessage, 1),
 	}
 	go s.readLoop()
 	go s.heartbeat()
@@ -161,6 +166,21 @@ func (s *Session) Ping() error {
 	return err
 }
 
+func (s *Session) SendFileExchangeStart(filename string, filesize uint32) error {
+	err, _ := s.write(func() error { return s.link.SendFileExchangeStart(filename, filesize) })
+	return err
+}
+
+func (s *Session) SendFileExchangeData(chunkIndex uint32, chunkData []byte) error {
+	err, _ := s.write(func() error { return s.link.SendFileExchangeData(chunkIndex, chunkData) })
+	return err
+}
+
+func (s *Session) SendFileExchangeEnd() error {
+	err, _ := s.write(func() error { return s.link.SendFileExchangeEnd() })
+	return err
+}
+
 func (s *Session) readLoop() {
 	defer func() {
 		s.mu.Lock()
@@ -237,7 +257,67 @@ func (s *Session) handleFrame(frame Frame) {
 		s.mu.Lock()
 		s.connected = true
 		s.mu.Unlock()
+	case MessageFileExchangeAck:
+		ack, err := DecodeFileExchangeAck(frame.Payload)
+		if err == nil {
+			select {
+			case s.ackChan <- ack:
+			default:
+			}
+		}
 	}
+}
+
+func (s *Session) waitForAck(expectedChunk uint32) error {
+	select {
+	case ack := <-s.ackChan:
+		if ack.ChunkIndex != expectedChunk {
+			return fmt.Errorf("unexpected chunk ack: got %d, want %d", ack.ChunkIndex, expectedChunk)
+		}
+		if ack.Status != 0 {
+			return fmt.Errorf("Device rejected chunk %d (status %d)", expectedChunk, ack.Status)
+		}
+
+		return nil
+	case <-time.After(3 * time.Second):
+		return fmt.Errorf("timeout waiting for device ACK on chunk %d", expectedChunk)
+	case <-s.done:
+		return errors.New("Session closed")
+	}
+}
+
+func (s *Session) UploadFile(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	filename := filepath.Base(path)
+	if err := s.SendFileExchangeStart(filename, uint32(len(data))); err != nil {
+		return err
+	}
+
+	if err := s.waitForAck(0); err != nil {
+		return err
+	}
+
+	chunkSize := 128
+	totalChunks := (len(data) + chunkSize - 1) / chunkSize
+
+	for i := 0; i < totalChunks; i++ {
+		chunk := data[i*chunkSize : min((i+1)*chunkSize, len(data))]
+		if err := s.SendFileExchangeData(uint32(i), chunk); err != nil {
+			return err
+		}
+
+		if err := s.waitForAck(uint32(i)); err != nil {
+			return err
+		}
+
+		println(i)
+	}
+
+	return s.SendFileExchangeEnd()
 }
 
 func (s *Session) publish(event Event) {

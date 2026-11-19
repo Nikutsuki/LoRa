@@ -1,3 +1,6 @@
+# github.com/TheTitanrain/w32 v0.0.0-20180517000239-4f5cfb03fabf
+## explicit
+github.com/TheTitanrain/w32
 # github.com/aymanbagabas/go-osc52/v2 v2.0.1
 ## explicit; go 1.16
 github.com/aymanbagabas/go-osc52/v2
@@ -60,6 +63,10 @@ github.com/muesli/termenv
 # github.com/rivo/uniseg v0.4.7
 ## explicit; go 1.18
 github.com/rivo/uniseg
+# github.com/sqweek/dialog v0.0.0-20260123140253-64c163d53aac
+## explicit
+github.com/sqweek/dialog
+github.com/sqweek/dialog/cocoa
 # github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e
 ## explicit; go 1.19
 github.com/xo/terminfo

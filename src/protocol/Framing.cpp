@@ -181,6 +181,18 @@ bool PayloadBuilder::u16(uint16_t value)
     return true;
 }
 
+bool PayloadBuilder::u32(uint32_t value)
+{
+    if (size_ + 4 > capacity_) {
+        return false;
+    }
+    data_[size_++] = static_cast<uint8_t>(value & 0xFF);
+    data_[size_++] = static_cast<uint8_t>((value >> 8) & 0xFF);
+    data_[size_++] = static_cast<uint8_t>((value >> 16) & 0xFF);
+    data_[size_++] = static_cast<uint8_t>((value >> 24) & 0xFF);
+    return true;
+}
+
 bool PayloadBuilder::str(const char *value)
 {
     size_t length = 0;
@@ -227,6 +239,20 @@ bool PayloadReader::u16(uint16_t &value)
     const uint16_t high = data_[offset_ + 1];
     value = static_cast<uint16_t>(low | (high << 8));
     offset_ += 2;
+    return true;
+}
+
+bool PayloadReader::u32(uint32_t &value)
+{
+    if (offset_ + 4 > length_) {
+        return false;
+    }
+    const uint32_t b0 = data_[offset_];
+    const uint32_t b1 = data_[offset_ + 1];
+    const uint32_t b2 = data_[offset_ + 2];
+    const uint32_t b3 = data_[offset_ + 3];
+    value = static_cast<uint32_t>(b0 | (b1 << 8) | (b2 << 16) | (b3 << 24));
+    offset_ += 4;
     return true;
 }
 

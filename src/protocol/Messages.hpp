@@ -68,6 +68,31 @@ struct NoticeMessage {
 bool writeNotice(PayloadBuilder &builder, const NoticeMessage &notice);
 bool readNotice(PayloadReader &reader, NoticeMessage &notice);
 
+struct FileExchangeStartMessage {
+    const char *filename = "";
+    uint32_t fileSize = 0;
+};
+
+bool writeFileExchangeStart(PayloadBuilder &builder, const FileExchangeStartMessage &message);
+bool readFileExchangeStart(PayloadReader &reader, FileExchangeStartMessage &message);
+
+struct FileExchangeDataMessage {
+    uint32_t chunkIndex = 0;
+    uint32_t length = 0;
+    uint8_t chunkData[128]{};
+};
+
+bool writeFileExchangeData(PayloadBuilder &builder, const FileExchangeDataMessage &message);
+bool readFileExchangeData(PayloadReader &reader, FileExchangeDataMessage &message);
+
+struct FileExchangeAckMessage {
+    uint32_t chunkIndex = 0;
+    uint8_t status = 0;
+};
+
+bool writeFileExchangeAck(PayloadBuilder &builder, const FileExchangeAckMessage &message);
+bool readFileExchangeAck(PayloadReader &reader, FileExchangeAckMessage &message);
+
 /*!
  * Hello payload: u16 width, u16 height, u8 protocolVersion.
  */

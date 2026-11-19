@@ -43,6 +43,10 @@ enum class PacketType : uint8_t {
     InviteAccept = 2,
     EncryptedMessage = 3,
     MessageAck = 4,
+    FileExchangeStart = 5,
+    FileExchangeData = 6,
+    FileExchangeEnd = 8,
+    FileExchangeCancel = 9,
 };
 
 struct PacketHeader {

@@ -25,12 +25,17 @@ const (
 type MessageType uint8
 
 const (
-	MessageHello  MessageType = 1
-	MessageScreen MessageType = 2
-	MessageNotice MessageType = 3
-	MessageKey    MessageType = 4
-	MessagePing   MessageType = 5
-	MessagePong   MessageType = 6
+	MessageHello              MessageType = 1
+	MessageScreen             MessageType = 2
+	MessageNotice             MessageType = 3
+	MessageKey                MessageType = 4
+	MessagePing               MessageType = 5
+	MessagePong               MessageType = 6
+	MessageFileExchangeStart  MessageType = 7
+	MessageFileExchangeData   MessageType = 8
+	MessageFileExchangeAck    MessageType = 9
+	MessageFileExchangeEnd    MessageType = 10
+	MessageFileExchangeCancel MessageType = 11
 )
 
 // ComponentKind mirrors ui::ComponentKind.
@@ -115,17 +120,17 @@ func EncodeFrame(msgType MessageType, payload []byte) ([]byte, error) {
 
 // Component is one widget inside a Screen frame.
 type Component struct {
-	Kind      ComponentKind
-	X, Y      uint16
-	W, H      uint16
-	Focused   bool
-	Selected  bool
-	Focusable bool
-	Color     uint16
+	Kind        ComponentKind
+	X, Y        uint16
+	W, H        uint16
+	Focused     bool
+	Selected    bool
+	Focusable   bool
+	Color       uint16
 	StatusColor uint16
-	Scale     uint8
-	Primary   string
-	Secondary string
+	Scale       uint8
+	Primary     string
+	Secondary   string
 }
 
 // Screen is a full screen description from the device.
@@ -140,6 +145,16 @@ type Screen struct {
 type Notice struct {
 	Level NoticeLevel
 	Text  string
+}
+
+type FileExchangeStartMessage struct {
+	Filename string
+	FileSize uint32
+}
+
+type FileExchangeAckMessage struct {
+	ChunkIndex uint32
+	Status     uint8
 }
 
 // Hello announces the device geometry and protocol version.
@@ -158,6 +173,10 @@ func (b *payloadBuilder) u8(v uint8) { b.buf = append(b.buf, v) }
 
 func (b *payloadBuilder) u16(v uint16) {
 	b.buf = append(b.buf, byte(v), byte(v>>8))
+}
+
+func (b *payloadBuilder) u32(v uint32) {
+	b.buf = append(b.buf, byte(v), byte(v>>8), byte(v>>16), byte(v>>24))
 }
 
 func (b *payloadBuilder) str(v string) error {
@@ -193,6 +212,16 @@ func (r *payloadReader) u16() (uint16, error) {
 	return v, nil
 }
 
+func (r *payloadReader) u32() (uint32, error) {
+	if r.off+4 > len(r.buf) {
+		return 0, ErrShortPayload
+	}
+
+	v := binary.LittleEndian.Uint32(r.buf[r.off:])
+	r.off += 4
+	return v, nil
+}
+
 func (r *payloadReader) str() (string, error) {
 	length, err := r.u8()
 	if err != nil {
@@ -214,6 +243,25 @@ func EncodeKey(code KeyCode, character byte) ([]byte, error) {
 	return b.buf, nil
 }
 
+func EncodeFileExchangeStart(filename string, filesize uint32) ([]byte, error) {
+	b := &payloadBuilder{}
+	if err := b.str(filename); err != nil {
+		return nil, err
+	}
+	b.u32(filesize)
+	return b.buf, nil
+}
+
+func EncodeFileExchangeData(chunkIndex uint32, chunkData []byte) ([]byte, error) {
+	b := &payloadBuilder{}
+	b.u32(chunkIndex)
+	b.u32(uint32(len(chunkData)))
+
+	b.buf = append(b.buf, chunkData...)
+
+	return b.buf, nil
+}
+
 // EncodePing builds an empty liveness payload.
 func EncodePing() []byte { return nil }
 
@@ -230,6 +278,20 @@ func DecodeHello(payload []byte) (Hello, error) {
 	}
 	h.ProtocolVersion, err = r.u8()
 	return h, err
+}
+
+func DecodeFileExchangeAck(payload []byte) (FileExchangeAckMessage, error) {
+	r := &payloadReader{buf: payload}
+	chunkIndex, err := r.u32()
+	if err != nil {
+		return FileExchangeAckMessage{}, err
+	}
+	status, err := r.u8()
+	if err != nil {
+		return FileExchangeAckMessage{}, err
+	}
+
+	return FileExchangeAckMessage{ChunkIndex: chunkIndex, Status: status}, nil
 }
 
 // DecodeNotice parses a Notice payload.

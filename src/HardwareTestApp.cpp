@@ -35,7 +35,8 @@ HardwareTestApp::HardwareTestApp()
       lcdScreen_(display_, theme_),
       uartScreen_(session_, TftWidth, TftHeight),
       cardKbInput_(keyboard_),
-      uartInput_(session_)
+      uartInput_(session_),
+      fileUploadManager_(session_, radio_, contacts_)
 {
     std::strncpy(notice_, "Starting", sizeof(notice_) - 1);
 }
@@ -87,6 +88,7 @@ void HardwareTestApp::run()
 
         pollRadio();
         pollInput();
+        pollFileExchange();
         render();
         sleep_ms(20);
     }
@@ -941,6 +943,11 @@ void HardwareTestApp::handleReceivedPacket()
         return;
     }
 
+    if (packet.header.type == crypto_chat::PacketType::FileExchangeStart)
+    {
+        setNotice("File upload start received", ui::Tone::Focus);
+    }
+
     if (packet.header.type == crypto_chat::PacketType::InviteBroadcast || packet.header.type == crypto_chat::PacketType::InviteAccept)
     {
         crypto_chat::Contact contact;
@@ -995,6 +1002,21 @@ void HardwareTestApp::pollInput()
     while (keySource_->poll(event))
     {
         handleKeyEvent(event);
+    }
+}
+
+void HardwareTestApp::pollFileExchange()
+{
+    proto::FileExchangeStartMessage startMsg;
+    if (session_.nextFileStart(startMsg))
+    {
+        
+    }
+
+    proto::FileExchangeDataMessage dataMsg;
+    if (session_.nextFileData(dataMsg))
+    {
+
     }
 }
 

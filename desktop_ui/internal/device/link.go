@@ -66,6 +66,47 @@ func (l *Link) SendPing() error {
 	return err
 }
 
+func (l *Link) SendFileExchangeStart(filename string, filesize uint32) error {
+	payload, err := EncodeFileExchangeStart(filename, filesize)
+	if err != nil {
+		return err
+	}
+	frame, err := EncodeFrame(MessageFileExchangeStart, payload)
+	if err != nil {
+		return err
+	}
+	_, err = l.transport.Write(frame)
+	return err
+}
+
+func (l *Link) SendFileExchangeData(chunkIndex uint32, chunkData []byte) error {
+	payload, err := EncodeFileExchangeData(chunkIndex, chunkData)
+	if err != nil {
+		return err
+	}
+
+	frame, err := EncodeFrame(MessageFileExchangeData, payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = l.transport.Write(frame)
+
+	return err
+}
+
+func (l *Link) SendFileExchangeEnd() error {
+	frame, err := EncodeFrame(MessageFileExchangeEnd, nil)
+
+	if err != nil {
+		return err
+	}
+
+	_, err = l.transport.Write(frame)
+
+	return err
+}
+
 // Close releases the underlying transport.
 func (l *Link) Close() error {
 	return l.transport.Close()

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 #include "ByteStream.hpp"
 #include "Messages.hpp"
@@ -43,6 +44,10 @@ public:
 
     bool sendHello(uint16_t width, uint16_t height);
     bool sendNotice(const NoticeMessage &notice);
+    bool sendExchangeAck(uint32_t chunkIndex, uint8_t status = 0);
+
+    bool nextFileStart(FileExchangeStartMessage &msg);
+    bool nextFileData(FileExchangeDataMessage &msg);
 
     /*!
      * Starts collecting a Screen frame.
@@ -96,6 +101,8 @@ public:
 private:
     static void onFrame(MessageType type, const uint8_t *payload, size_t length, void *context);
     void handleKeyFrame(const uint8_t *payload, size_t length);
+    void handleFileStartFrame(const uint8_t *payload, size_t length);
+    void handleFileDataFrame(const uint8_t *payload, size_t length);
     bool emit(MessageType type, const uint8_t *payload, size_t length);
 
     ByteStream &stream_;
@@ -109,6 +116,13 @@ private:
     KeyMessage keyQueue_[KeyQueueSize]{};
     size_t keyHead_ = 0;
     size_t keyCount_ = 0;
+
+    FileExchangeStartMessage pendingFileStart_{};
+    char pendingFilename_[64]{};
+    bool hasPendingFileStart_ = false;
+
+    FileExchangeDataMessage pendingFileData_{};
+    bool hasPendingFileData_ = false;
 
     ComponentMessage screenComponents_[MaxScreenComponents]{};
     uint16_t screenWidth_ = 0;

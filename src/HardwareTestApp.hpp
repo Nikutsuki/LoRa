@@ -18,6 +18,7 @@
 #include "ui/LcdScreen.hpp"
 #include "ui/Screen.hpp"
 #include "ui/Ui.hpp"
+#include "FileUploadManager.hpp"
 #include "pico/time.h"
 
 /*!
@@ -94,6 +95,7 @@ private:
     void pollRadio();
     void handleReceivedPacket();
     void pollInput();
+    void pollFileExchange();
     const crypto_chat::Contact *selectedContact() const;
     void fingerprintText(const uint8_t fingerprint[crypto_chat::FingerprintSize], char *out, size_t outSize) const;
     bool parseHexSeed(const char *hexSeed, uint8_t out[32]) const;
@@ -104,6 +106,7 @@ private:
     CardKbKeyboard keyboard_;
     proto::UsbCdcTransport usbLink_;
     proto::LinkSession session_;
+
     ui::Theme theme_{};
 
     ui::LcdScreen lcdScreen_;
@@ -118,6 +121,8 @@ private:
     crypto_chat::LoraMessenger radio_;
     crypto_chat::ChatHistory history_;
     crypto_chat::Contact pendingInvite_{};
+
+    proto::FileUploadManager fileUploadManager_;
 
     char input_[InputMax]{};
     char notice_[64]{};

@@ -89,6 +89,7 @@ public:
 
     bool u8(uint8_t value);
     bool u16(uint16_t value);
+    bool u32(uint32_t value);
     bool str(const char *value);
 
     size_t size() const;
@@ -108,6 +109,7 @@ public:
 
     bool u8(uint8_t &value);
     bool u16(uint16_t &value);
+    bool u32(uint32_t &value);
     bool str(const char *&value);
 
     bool empty() const;

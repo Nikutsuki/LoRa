@@ -50,6 +50,11 @@ enum class MessageType : uint8_t {
     Ping = 5,
     /*! Device -> host: reply to Ping. */
     Pong = 6,
+    FileExchangeStart = 7,
+    FileExchangeData = 8,
+    FileExchangeAck = 9,
+    FileExchangeEnd = 10,
+    FileExchangeCancel = 11,
 };
 
 enum class KeyCode : uint8_t {

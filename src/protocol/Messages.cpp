@@ -96,6 +96,60 @@ bool readNotice(PayloadReader &reader, NoticeMessage &notice)
     return true;
 }
 
+bool writeFileExchangeStart(PayloadBuilder &builder, const FileExchangeStartMessage &message)
+{
+    return builder.str(message.filename) && builder.u32(message.fileSize);
+}
+
+bool readFileExchangeStart(PayloadReader &reader, FileExchangeStartMessage &message)
+{
+    if (!reader.str(message.filename) || !reader.u32(message.fileSize)) {
+        return false;
+    }
+    return true;
+}
+
+bool writeFileExchangeData(PayloadBuilder &builder, const FileExchangeDataMessage &message)
+{
+    if (!builder.u32(message.chunkIndex)) return false;
+
+    if (!builder.u32(message.length)) return false;
+
+    for (uint32_t i = 0; i < message.length; i++) {
+        if (!builder.u8(message.chunkData[i])) return false;
+    }
+
+    return true;
+}
+
+bool readFileExchangeData(PayloadReader &reader, FileExchangeDataMessage &message)
+{
+    if (!reader.u32(message.chunkIndex)) return false;
+
+    uint32_t len = 0;
+    if (!reader.u32(len) || len > sizeof(message.chunkData)) return false;
+
+    message.length = len;
+
+    for (uint32_t i = 0; i < len; i++) {
+        if (!reader.u8(message.chunkData[i])) return false;
+    }
+
+    return true;
+}
+
+bool writeFileExchangeAck(PayloadBuilder &builder, const FileExchangeAckMessage &message)
+{
+    return builder.u32(message.chunkIndex) && builder.u8(message.status);
+}
+bool readFileExchangeAck(PayloadReader &reader, FileExchangeAckMessage &message)
+{
+    if (!reader.u32(message.chunkIndex) || !reader.u8(message.status)) {
+        return false;
+    }
+    return true;
+}
+
 bool writeHello(PayloadBuilder &builder, const HelloMessage &hello)
 {
     return builder.u16(hello.width) &&
