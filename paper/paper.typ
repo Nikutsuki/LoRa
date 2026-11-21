@@ -103,11 +103,57 @@ Układ pracy jest podporządkowany założonemu zakresowi pracy w następujący 
 // AI NOTE sprawdzic czy te matematyczne na pewno tak sa, i bibliografie do tego
 
 LoRa (Long Range) to technologia transmisji radiowej opracowana przez firmę Semtech, polega ona na modulacji z rozproszonym widmem sygnałem świergotowym (CSS Chirp Spread Spectrum). Główną zasadą działania tego mechanizmu jest wymiana przepustowości na zysk przetwarzania (processing gain) oraz odporność na szum otoczenia (background noise).
+
 \ Przesyłanie danych odbywa się poprzez tak zwane "chirpy" czyli przebieg którego częstotliwość zmienia się w czasie w sposób liniowy i ciągły, przechodząc przez całe pasmo kanału.
 \ Przebiegi dzielimy na dwa rodzaje, czyli "up-chirp" oraz "down-chirp", jeśli przebieg zaczyna się na dolnej granicy pasma ($F_c - (B W)/2$) a kończy na górnej ($F_c + (B W)/2$) a nachylenie jest dodatnie ($beta > 0$) to jest to "up-chirp", jeśli natomiast przebieg zaczyna się na górnej granicy a kończy na dolnej z nachyleniem ujemnym ($beta < 0$) to jest to "down-chirp".
 \ Dwa rodzaje sygnałow dają tylko dwie wartości które można przesłać, dlatego LoRa wykorzystuje kodowanie M-arne, w którym $M = 2^("SF")$ a pojedyńczy symbol zawiera $"SF"$ bitów danych.
 Aby móc reprezentować symbol z zakresu $s in {0, 1, ..., 2^("SF")-1}$ bazowy "up-chirp" podlega cyklicznemu przesunięciu czasowemu (cyclic shift) zależnie od wartości $s$. W efekcie na wykresie częstotliwości względem czasu sygnał zaczyna się od częstotliwości odpowiadającej symbolowi $s$, liniowo narasta do górnej granicy pasma, a następnie "zawija" się spowrotem do dolnej krawędzi pasma i kontynuuje aż do częstotliwości startowej.
 
+\ W pakiecie LoRa wykorzystywane są oba rodzaje przebiegów aby precyzyjnie zsynchronizować czas i częstotliwość. Preambuła pakietu składa się z 8 sygnałów "up-chirp", a następnie z 2 zakodowanych sygnałów "up-chirp" służących do identyfikacji sieci oraz 2,25 nieprzesuniętego sygnału "down-chirp" sygnalizującego początek danych. Po stronie odbiorcy sygnał podlega operacji "de-chirpingu", czyli przemnożeniu odebranego sygnału przez bazowy sygnał o przeciwnym nachyleniu (down-chirp) co przekształca cykliczne przesunięcie czasowe w przebieg o stałej częstotliwości. Następnie stosuje się dyskretną transformatę Fouriera (DFT) która skupia rozproszoną energię przebiegu w odrębnym wąskim prążku widma, co pozwala na detekcję poniżej poziomu szumów.
+
+=== Parametry transmisji
+
+Transmisja LoRa posiada trzy parametry które możemy kontrolować, są to:
+- współczynnik rozpraszania (Spreading Factor, SF)
+- szerokość pasma (Bandwidth, BW)
+- stopa kodowania korekcyjnego (Coding Rate, CR)
+
+\ Czas trwania pojedyńczego przebiegu można policzyć z następującego wzoru:
+$ T_"sym"= 2^("SF")/"BW" $
+
+\ Standard LoRa przewiduje współczynnik SF w przedziale od SF7 do SF12 (układ SX1276 dodatkowo wspiera SF6),
+co przekłada się na od 128 do 4096 "chipów" na jeden symbol. Podniesienie SF o jeden stopień, powoduje podwojenie długości symbolu oraz czas jego obecności na kanale (Time on Air, ToA), maleje za to przepustowość w zamian za czułość odbiornika i odporność na szum. Natomiast szerokość pasma (BW) wynosi 125 kHz lub 250 kHz (moduł SX1276 obsługuje wartości od 7.8 kHz do 500 kHz). Poszerzenie pasma podwójnie, skraca o połowę czas trwania przebiegu, i zwiększa przepustowość, ale zwiększa ilość szumu w odbiorniku o $10log_10("BW"_2/"BW"_1)$ dB co pogarsza czułość. 
+
+\ Korekcja błędów której używa LoRa to "FEC" (forward error correction), dostępne są 4 stopnie kodowania, od CR 4/5 do CR 4/8, wartość CR 4/5 zapewnia 20% nadmiarowości (1 bit korekcyjny na 4 bity przesyłanych danych),
+wartość CR 4/8 zapewnia 100% nadmiarowości co zapewnia naprawę błędów w środowiskach o silnych zakłóceniach. LoRa stosuje układ przeplotu (interleaver) który rozprasza bity wiadomości pomiędzy wieloma słowami kodowymi, w rezultacie nawet najlżejszy i najszybszy kod 4/5 zapewnia istotną odporność na błędy. Całkowity czas trwania pakietu (Time on Air) na podstawie wzoru ze specyfikacji Semtech wynosi
+$ T_"air" = (N_"pre" + 4.25) * T_"sym" + [8 + max(ceil((8 * "PL" - 4 * "SF" + 44)/(4("SF" - 2 * "DE")))*("CR"_"idx" + 4), 0)] * T_"sym" $
+
+\ gdzie $N_"pre"$ to liczba sygnałów preambuły, PL to ilość przesyłanych bajtów danych, $"CR"_"idx"$ to liczba $"idx" in {1,2,3,4}$ odpowiadająca odpowiednio dla CR 4/5-4/8, parametr DE jest równy 1 przy włączonej optymalizacji niskich przepustowości (stosuje się ją dla SF11 i SF12 przy BW 125 kHz). Według tego wzoru pakiet o długości 20 bajtów, z podstawowym kodowaniem CR 4/5, BW 125 kHz, oraz SF10, będzie przesyłany przez 0.370688 sekund, lub 370.688 milisekund.
+
+#{
+  set par(justify: false)
+  set text(size: 9.5pt)
+  set par(leading: 0.55em)
+  table(
+    columns: (auto, auto, auto, auto),
+    table.header([*Parametr*], [*Przyjmowane wartości*], [*Wpływ na Time on Air*], [*Wpływ na przesył danych*]),
+    [Spreading Factor (SF)], [SF7 - SF12 (SX1276 wspiera SF6)], [Zwiększenie o 1 podwaja $T_"sym"$ oraz ToA], [Większe wartości SF obniżają próg wymaganego SNR aby poprawnie zdekodować wiadomość, lecz bardzo wydłużają ToA i ryzyko kolizji],
+    [Bandwidth (BW)], [125 - 250 kHz (SX1276: 7.8 - 500 kHz)], [Odwrotnie proporcjonalny do $T_"sym"$ (Podwojenie BW skraca symbol w pół)], [Szersze pasmo przyspiesza prędkość transmisji, ale wpuszcza do odbiornika więcej szumu tła, obniżając czułość],
+    [Coding Rate (CR)], [4/5, 4/6, 4/7, 4/8], [Zwiększa rozmiar pakietu proporcjonalnie do wybranego kodowania], [Wyższe wartości zwiekszają nadmiarowość dla poprawy odporności na błędy, ale zwiększają ToA]
+  )
+}
+
+=== Czułość odbiornika poniżej progu szumów i duty cycle
+
+LoRa pozwala na dekodowanie sygnałów poniżej progu szumów poprzez skupienie energii rozproszonego sygnału w jednym wąskim prążku podczas "de-chirpingu", teoretyczną czułość odbiornika w dBm wyznacza równanie:
+$ S_"RX" = -174 + 10log_10("BW") + "NF" + "SNR"_"limit"("SF") $
+
+\ Gdzie -174 dBm/Hz to gęstość widmowa szumów termicznych w temperaturze pokojowej, BW w hercach, NF to współczynnik szumów odbiornika (dla SX1276 jest to $"NF" = 6 "dB"$), $"SNR"_"limit"$ to minimalny stosunek sygnału do szumu otoczenia który wymagany jest aby poprawnie zdekodować sygnał. Oficjalne dane producenta (Semtech) mówią że próg ten wynosi $-7.5"dB"$ dla $"SF7"$, oraz $"-20 dB"$ dla $"SF12"$.
+
+\ W przypadku standardowej transmisji z parametrami $"BW"= 125 "kHz" (10log_10(125000) approx 50.97 "dB")$ oraz $"NF"= 6 "dB"$ otrzymujemy podłogę szumową (noise floor) wynoszącą około $-117.03 "dBm"$. W rezultacie teoretyczna czułość wynosi około $-124.5 "dBm"$ dla SF7 oraz około $-137.0 "dBm"$ dla SF12. Jeśli dodatkowo zawężymy pasmo i wybierzemy najwyższą wartość SF12, układ SX1276 osiągnie maksymalną czułość katalogową  $-148 "dBm"$. Budżet łącza (Link Budget, jednostka dB) wyznacza równanie:
+$ "Link Budget" = P_"TX" + G_"TX" + G_"RX" - L_"loss" - S_"RX" $
+
+gdzie $P_"TX"$ to moc nadajnika, $G_"TX"$ oraz $G_"RX"$ to zyski anten odpowiednio nadajnika i odbiornika, $L_"loss"$ to suma strat kabli i złączy. Maksymalna moc SX1276 wynosi $+20 "dBm" (100 "mW")$ a czułość $-148 "dBm"$, więc teoretyczny budżet łącza sięga $168 "dB"$, a dla standardowych parametrów transmisji (+20 dBm, SF10, BW 125) wynosi $152 "dB"$  (przy zerowych stratach). W realnych warunków jest on jednak niższy ze względu na regulacje prawne określające limity mocy nadawania. 
 
 == Przegląd istniejących rozwiązań
 
