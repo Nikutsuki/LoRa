@@ -41,7 +41,7 @@
 
 #outline(
   title: [Spis treści],
-  indent: auto
+  indent: auto,
 )
 
 #pagebreak()
@@ -62,7 +62,7 @@ Jak więc rozwiązać te problemy? Praktyczna użyteczność bezinfrastrukturowe
 
 == Cel pracy
 
-Celem niniejszej pracy jest projekt oraz implementacja autonomicznego przenośnego urządzenia (handheld) do bezprzewodowej komunikacji tekstowej na dalekie dystanse, bazującego na technologii LoRa oraz mikrokontrolerze RP2040. Urządzenie umożliwia bezpieczną komunikację za pomocą wiadomości tekstowych, oraz na wymianę plików, cały ruch szyfrowany jest przed emisją radiową, co zapewnia wysoki poziom poufności oraz integralność przesyłanych wiadomości. Urządzenie działa w pełni niezależnie, bez dostępu do publicznej infrastruktury sieciowej (komunikacja off-grid). 
+Celem niniejszej pracy jest projekt oraz implementacja autonomicznego przenośnego urządzenia (handheld) do bezprzewodowej komunikacji tekstowej na dalekie dystanse, bazującego na technologii LoRa oraz mikrokontrolerze RP2040. Urządzenie umożliwia bezpieczną komunikację za pomocą wiadomości tekstowych, oraz na wymianę plików, cały ruch szyfrowany jest przed emisją radiową, co zapewnia wysoki poziom poufności oraz integralność przesyłanych wiadomości. Urządzenie działa w pełni niezależnie, bez dostępu do publicznej infrastruktury sieciowej (komunikacja off-grid).
 
 == Zakres
 
@@ -71,7 +71,7 @@ Aby zrealizować ten cel zdefiniowano następujący zakres pracy:
 + Projekt i budowa prototypu urządzenia (mikrokontroler RP2040, moduł radiowy, wyświetlacz LCD, klawiatura)  oraz schemat połączeń.
 + Opracowanie protokołu transmisji oraz komunikacji z mechanizmami szyfrowania End-to-End.
 + Implementacja firmware'u urządzenia, realizującego obsługę modułu LoRa, sterowników peryferiów, interfejsu użytkownika oraz pamięci trwałej.
-+ Implementacja oprogramowania na komputer do komunikacji z urządzeniem. 
++ Implementacja oprogramowania na komputer do komunikacji z urządzeniem.
 + Przeprowadzenie testów działania urządzenia oraz pomiarów zasięgu i jakości sygnału.
 
 == Struktura
@@ -80,18 +80,18 @@ Układ pracy jest podporządkowany założonemu zakresowi pracy w następujący 
 
 // DO ZMIANY AI!!!!!!!!!!!!
 - *Rozdział 2 (Stan wiedzy)* – zawiera przegląd literatury dotyczącej modulacji LoRa, pasm ISM, standardów
-    łączności ad-hoc oraz algorytmów kryptograficznych stosowanych w mikrokontrolerach.
-    - *Rozdział 3 (Analiza porównawcza i dobór rozwiązań)* – przedstawia kryteria wyboru komponentów sprzętowych
-    (RP2040, SX1262), biblioteki kryptograficznej Monocypher oraz uzasadnienie wyboru architektury peer-to-peer
-    zamiast sieci LoRaWAN.
-    - *Rozdział 4 (Projekt architektury i protokołu)* – szczegółowo omawia koncepcję urządzenia, format ramek
-    radiowych, procedurę parowania (Invite Protocol) oraz architekturę oprogramowania.
-    - *Rozdział 5 (Implementacja systemu)* – opisuje szczegóły techniczne firmware'u, implementację maszyn stanów,
-    obsługę interfejsu użytkownika oraz warstwy transportowej USB.
-    - *Rozdział 6 (Testy i walidacja)* – prezentuje metodykę pomiarową, wyniki testów zasięgu w terenie, pomiary
-    narzutu kryptografii oraz weryfikację niezawodności transmisji.
-    - *Rozdział 7 (Podsumowanie i wnioski)* – podsumowuje stopień realizacji celów i wskazuje kierunki dalszego
-    rozwoju konstrukcji.
+  łączności ad-hoc oraz algorytmów kryptograficznych stosowanych w mikrokontrolerach.
+  - *Rozdział 3 (Analiza porównawcza i dobór rozwiązań)* – przedstawia kryteria wyboru komponentów sprzętowych
+  (RP2040, SX1262), biblioteki kryptograficznej Monocypher oraz uzasadnienie wyboru architektury peer-to-peer
+  zamiast sieci LoRaWAN.
+  - *Rozdział 4 (Projekt architektury i protokołu)* – szczegółowo omawia koncepcję urządzenia, format ramek
+  radiowych, procedurę parowania (Invite Protocol) oraz architekturę oprogramowania.
+  - *Rozdział 5 (Implementacja systemu)* – opisuje szczegóły techniczne firmware'u, implementację maszyn stanów,
+  obsługę interfejsu użytkownika oraz warstwy transportowej USB.
+  - *Rozdział 6 (Testy i walidacja)* – prezentuje metodykę pomiarową, wyniki testów zasięgu w terenie, pomiary
+  narzutu kryptografii oraz weryfikację niezawodności transmisji.
+  - *Rozdział 7 (Podsumowanie i wnioski)* – podsumowuje stopień realizacji celów i wskazuje kierunki dalszego
+  rozwoju konstrukcji.
 // KONIEC AI!!!!
 
 = Stan wiedzy
@@ -118,15 +118,17 @@ Transmisja LoRa posiada trzy parametry które możemy kontrolować, są to:
 - szerokość pasma (Bandwidth, BW)
 - stopa kodowania korekcyjnego (Coding Rate, CR)
 
-\ Czas trwania pojedyńczego przebiegu można policzyć z następującego wzoru:
+\ Czas trwania pojedynczego przebiegu można policzyć z następującego wzoru:
 $ T_"sym"= 2^("SF")/"BW" $
 
 \ Standard LoRa przewiduje współczynnik SF w przedziale od SF7 do SF12 (układ SX1276 dodatkowo wspiera SF6),
-co przekłada się na od 128 do 4096 "chipów" na jeden symbol. Podniesienie SF o jeden stopień, powoduje podwojenie długości symbolu oraz czas jego obecności na kanale (Time on Air, ToA), maleje za to przepustowość w zamian za czułość odbiornika i odporność na szum. Natomiast szerokość pasma (BW) wynosi 125 kHz lub 250 kHz (moduł SX1276 obsługuje wartości od 7.8 kHz do 500 kHz). Poszerzenie pasma podwójnie, skraca o połowę czas trwania przebiegu, i zwiększa przepustowość, ale zwiększa ilość szumu w odbiorniku o $10log_10("BW"_2/"BW"_1)$ dB co pogarsza czułość. 
+co przekłada się na od 128 do 4096 "chipów" na jeden symbol. Podniesienie SF o jeden stopień, powoduje podwojenie długości symbolu oraz czas jego obecności na kanale (Time on Air, ToA), maleje za to przepustowość w zamian za czułość odbiornika i odporność na szum. Natomiast szerokość pasma (BW) wynosi 125 kHz lub 250 kHz (moduł SX1276 obsługuje wartości od 7.8 kHz do 500 kHz). Poszerzenie pasma podwójnie, skraca o połowę czas trwania przebiegu, i zwiększa przepustowość, ale zwiększa ilość szumu w odbiorniku o $10log_10("BW"_2/"BW"_1)$ dB co pogarsza czułość.
 
 \ Korekcja błędów której używa LoRa to "FEC" (forward error correction), dostępne są 4 stopnie kodowania, od CR 4/5 do CR 4/8, wartość CR 4/5 zapewnia 20% nadmiarowości (1 bit korekcyjny na 4 bity przesyłanych danych),
 wartość CR 4/8 zapewnia 100% nadmiarowości co zapewnia naprawę błędów w środowiskach o silnych zakłóceniach. LoRa stosuje układ przeplotu (interleaver) który rozprasza bity wiadomości pomiędzy wieloma słowami kodowymi, w rezultacie nawet najlżejszy i najszybszy kod 4/5 zapewnia istotną odporność na błędy. Całkowity czas trwania pakietu (Time on Air) na podstawie wzoru ze specyfikacji Semtech wynosi
-$ T_"air" = (N_"pre" + 4.25) * T_"sym" + [8 + max(ceil((8 * "PL" - 4 * "SF" + 44)/(4("SF" - 2 * "DE")))*("CR"_"idx" + 4), 0)] * T_"sym" $
+$
+  T_"air" = (N_"pre" + 4.25) * T_"sym" + [8 + max(ceil((8 * "PL" - 4 * "SF" + 44)/(4("SF" - 2 * "DE")))*("CR"_"idx" + 4), 0)] * T_"sym"
+$
 
 \ gdzie $N_"pre"$ to liczba sygnałów preambuły, PL to ilość przesyłanych bajtów danych, $"CR"_"idx"$ to liczba $"idx" in {1,2,3,4}$ odpowiadająca odpowiednio dla CR 4/5-4/8, parametr DE jest równy 1 przy włączonej optymalizacji niskich przepustowości (stosuje się ją dla SF11 i SF12 przy BW 125 kHz). Według tego wzoru pakiet o długości 20 bajtów, z podstawowym kodowaniem CR 4/5, BW 125 kHz, oraz SF10, będzie przesyłany przez 0.370688 sekund, lub 370.688 milisekund.
 
@@ -137,9 +139,20 @@ $ T_"air" = (N_"pre" + 4.25) * T_"sym" + [8 + max(ceil((8 * "PL" - 4 * "SF" + 44
   table(
     columns: (auto, auto, auto, auto),
     table.header([*Parametr*], [*Przyjmowane wartości*], [*Wpływ na Time on Air*], [*Wpływ na przesył danych*]),
-    [Spreading Factor (SF)], [SF7 - SF12 (SX1276 wspiera SF6)], [Zwiększenie o 1 podwaja $T_"sym"$ oraz ToA], [Większe wartości SF obniżają próg wymaganego SNR aby poprawnie zdekodować wiadomość, lecz bardzo wydłużają ToA i ryzyko kolizji],
-    [Bandwidth (BW)], [125 - 250 kHz (SX1276: 7.8 - 500 kHz)], [Odwrotnie proporcjonalny do $T_"sym"$ (Podwojenie BW skraca symbol w pół)], [Szersze pasmo przyspiesza prędkość transmisji, ale wpuszcza do odbiornika więcej szumu tła, obniżając czułość],
-    [Coding Rate (CR)], [4/5, 4/6, 4/7, 4/8], [Zwiększa rozmiar pakietu proporcjonalnie do wybranego kodowania], [Wyższe wartości zwiekszają nadmiarowość dla poprawy odporności na błędy, ale zwiększają ToA]
+    [Spreading Factor (SF)],
+    [SF7 - SF12 (SX1276 wspiera SF6)],
+    [Zwiększenie o 1 podwaja $T_"sym"$ oraz ToA],
+    [Większe wartości SF obniżają próg wymaganego SNR aby poprawnie zdekodować wiadomość, lecz bardzo wydłużają ToA i ryzyko kolizji],
+
+    [Bandwidth (BW)],
+    [125 - 250 kHz (SX1276: 7.8 - 500 kHz)],
+    [Odwrotnie proporcjonalny do $T_"sym"$ (Podwojenie BW skraca symbol w pół)],
+    [Szersze pasmo przyspiesza prędkość transmisji, ale wpuszcza do odbiornika więcej szumu tła, obniżając czułość],
+
+    [Coding Rate (CR)],
+    [4/5, 4/6, 4/7, 4/8],
+    [Zwiększa rozmiar pakietu proporcjonalnie do wybranego kodowania],
+    [Wyższe wartości zwiekszają nadmiarowość dla poprawy odporności na błędy, ale zwiększają ToA],
   )
 }
 
@@ -153,20 +166,48 @@ $ S_"RX" = -174 + 10log_10("BW") + "NF" + "SNR"_"limit"("SF") $
 \ W przypadku standardowej transmisji z parametrami $"BW"= 125 "kHz" (10log_10(125000) approx 50.97 "dB")$ oraz $"NF"= 6 "dB"$ otrzymujemy podłogę szumową (noise floor) wynoszącą około $-117.03 "dBm"$. W rezultacie teoretyczna czułość wynosi około $-124.5 "dBm"$ dla SF7 oraz około $-137.0 "dBm"$ dla SF12. Jeśli dodatkowo zawężymy pasmo i wybierzemy najwyższą wartość SF12, układ SX1276 osiągnie maksymalną czułość katalogową  $-148 "dBm"$. Budżet łącza (Link Budget, jednostka dB) wyznacza równanie:
 $ "Link Budget" = P_"TX" + G_"TX" + G_"RX" - L_"loss" - S_"RX" $
 
-gdzie $P_"TX"$ to moc nadajnika, $G_"TX"$ oraz $G_"RX"$ to zyski anten odpowiednio nadajnika i odbiornika, $L_"loss"$ to suma strat kabli i złączy. Maksymalna moc SX1276 wynosi $+20 "dBm" (100 "mW")$ a czułość $-148 "dBm"$, więc teoretyczny budżet łącza sięga $168 "dB"$, a dla standardowych parametrów transmisji (+20 dBm, SF10, BW 125) wynosi $152 "dB"$  (przy zerowych stratach). W realnych warunków jest on jednak niższy ze względu na regulacje prawne określające limity mocy nadawania. 
+\ gdzie $P_"TX"$ to moc nadajnika, $G_"TX"$ oraz $G_"RX"$ to zyski anten odpowiednio nadajnika i odbiornika, $L_"loss"$ to suma strat kabli i złączy. Maksymalna moc SX1276 wynosi $+20 "dBm" (100 "mW")$ a czułość $-148 "dBm"$, więc teoretyczny budżet łącza sięga $168 "dB"$, a dla standardowych parametrów transmisji (+20 dBm, SF10, BW 125) wynosi $152 "dB"$  (przy zerowych stratach). W realnych warunków jest on jednak niższy ze względu na regulacje prawne określające limity mocy nadawania.
 
-== Przegląd istniejących rozwiązań
+=== Regulacje prawne w Europie: pasma EU433 i EU868
+
+Zasady użytkowania pasm ISM (_Industrial, Scentific, Medical_) i SRD (ang. _Short Range Devices_) w Europie reguluje norma ETSI EN 300 220 oraz zalecenie CEPT ERC/REC 70-03. W Polsce tymi normami zajmuje się Ministerstwo Cyfryzacji, poprzez "rozporządzenie Ministra Cyfryzacji w sprawie rozszerzonego zakresu urządzeń radiowych nadawczych lub nadawczo-odbiorczych, które mogą być używane bez pozwolenia radiowego. Na podstawie art. 145 ust. 4 ustawy z dnia 12 lipca 2024 r.".
+
+\ Pasmo EU433 obejmuje zakres częstotliwości 433.050-434.790 MHz, a pasmo EU868 obejmuje 863-870 MHz, różnią się one maksymalną dopuszczalną mocą transmisji, oraz regułami czasu dostępu do widma (cykl pracy i techniki LBT+AFA, Listen Before Talk + Adaptive Frequency Agility, nazwane w normie "polite spectrum access")
+
+#figure({
+  set par(justify: false)
+  set text(size: 9.5pt)
+  set par(leading: 0.55em)
+  table(
+    columns: (auto, auto, auto, auto),
+    table.header([*Pasmo / Podpasmo*], [*Zakres częstotliwości*], [*Maksymalna moc*], [*Limit duty cycle*]),
+    [EU433 - Pasmo H], [433.050-434.790 MHz], [10 mW (+10 dBm)], [$<=10% "duty cycle"$],
+    [EU433 - Pasmo I], [433.050-434.790 MHz], [1 mW (0 dBm)], [Brak wymogu],
+    [EU433 - Pasmo J], [434.040-434.790 MHz], [10 mW (+10 dBm)], [Brak wymogu],
+    [EU868 - Pasmo K], [863.000-865.000 MHz], [25 mW (+14 dBm)], [$<=0.1% "duty cycle lub PSA"$],
+    [EU868 - Pasmo L], [865.000-868.000 MHz], [25 mW (+14 dBm)], [$<=1% "duty cycle lub PSA"$],
+    [EU868 - Pasmo M], [868.000-868.600 MHz], [25 mW (+14 dBm)], [$<=1% "duty cycle lub PSA"$],
+    [EU868 - Pasmo N], [868.700-869.200 MHz], [25 mW (+14 dBm)], [$<=0.1% "duty cycle lub PSA"$],
+    [EU868 - Pasmo O], [869.400-869.650 MHz], [500 mW (+27 dBm)], [$<=10% "duty cycle lub PSA"$],
+  )
+  },
+  caption: [Zestawienie parametrów i pasm EU433 oraz EU868 bazująca na normie ETSI EN 300 220-2 @etsi_300_220_2[Tabela B.1].]
+)
+
+\ W rezultacie normy te wymuszają wprowadzenie programowego ograniczenia mocy nadajnikowo-odbiorników (SX1276 jest w stanie nadawać z mocą +20 dBm) do +10 dBm w przypadku EU433, lub +14 dBm dla EU868, dużym problemem jest również limit _Duty Cycle_, który w przypadku 1% daje urządzeniu tylko 36 sekund aktywnej transmisji na godzinę. W przypadku standardowych parametrów transmisji z podstawowym kodowaniem CR 4/5, BW 125 kHz, oraz SF10, a więc ToA rzędu 371 milisekund (dla 20-stu bajtów danych) otrzymujemy możliwość wysłania pojedynczego pakietu około raz na 37.1 sekund ($approx 97$ pakietów na godzinę), w przypadkowaniu wykorzystania techniki "meshowania", która wymaga retransmitowania ruchu innych użytkowników, to właśnie _Duty Cycle_ stanowi największe wąskie gardło przepustowości.
+
+== Przegląd istniejących rozwiązań łączności P2P
 
 == Kryptografia w systemach wbudowanych
 
 == Istniejące ekosystemy
 
 // AI NOTE!!!!!!!!!!!
-      • Meshtastic: Najpopularniejszy projekt open-source. Opisz jak działa (mesh flooding). Wskaż jego wady: konieczność używania smartfona przez Bluetooth/WiFi lub skomplikowanego UI, duży pobór energii
-      na ESP32, narzut protokołu.
-      • LoRaWAN: Standard przemysłowy. Wyjaśnij, dlaczego nie nadaje się do Twojego celu (wymaga stałych bramek/gatewayów, serwera sieciowego i gwiazdy topologii – brak bezpośredniej łączności P2P między
-      dwoma użytkownikami w lesie/górach).
-      • Disaster Radio / Reticulum Network Stack: Przykłady alternatywnych stosów ad-hoc.
+• Meshtastic: Najpopularniejszy projekt open-source. Opisz jak działa (mesh flooding). Wskaż jego wady: konieczność używania smartfona przez Bluetooth/WiFi lub skomplikowanego UI, duży pobór energii
+na ESP32, narzut protokołu.
+• LoRaWAN: Standard przemysłowy. Wyjaśnij, dlaczego nie nadaje się do Twojego celu (wymaga stałych bramek/gatewayów, serwera sieciowego i gwiazdy topologii – brak bezpośredniej łączności P2P między
+dwoma użytkownikami w lesie/górach).
+• Disaster Radio / Reticulum Network Stack: Przykłady alternatywnych stosów ad-hoc.
 // AI NOTE!!!!!!!!!!!
 
 = Wybrane algorytmy
@@ -186,12 +227,12 @@ gdzie $P_"TX"$ to moc nadajnika, $G_"TX"$ oraz $G_"RX"$ to zyski anten odpowiedn
 == Architektura sprzętowa
 
 // AI NOTE!!!!
-  2. Platforma sprzętowa: RP2040 vs ESP32 vs STM32:
-      • Dlaczego RP2040: 2 rdzenie Cortex-M0+ (133 MHz), elastyczne PIO, brak wbudowanego prądożernego radia Wi-Fi/BT (niższy pobór w stanie czuwania niż ciągle aktywny ESP32), dojrzałe Pico SDK w C++,
-      niski koszt.
+2. Platforma sprzętowa: RP2040 vs ESP32 vs STM32:
+  • Dlaczego RP2040: 2 rdzenie Cortex-M0+ (133 MHz), elastyczne PIO, brak wbudowanego prądożernego radia Wi-Fi/BT (niższy pobór w stanie czuwania niż ciągle aktywny ESP32), dojrzałe Pico SDK w C++,
+  niski koszt.
 // AI NOTE!!!!!!!!
 
-== Środowisko programistyczne 
+== Środowisko programistyczne
 
 == Opis maszyn stanów oraz przepływu danych
 
@@ -201,30 +242,34 @@ gdzie $P_"TX"$ to moc nadajnika, $G_"TX"$ oraz $G_"RX"$ to zyski anten odpowiedn
 
 = Wnioski
 
-== 
+==
 
 // AI NOTE!!!!!!!!!
-  • Samokrytyka i ograniczenia rozwiązania (bardzo cenione na obronie):
-      • Brak sprzętowego bezpiecznego magazynu kluczy (RP2040 w wersji A nie posiada wbudowanego bezpiecznego elementu CryptoAuth ani sprzętowego szyfrowania pamięci Flash – klucze są chronione programowo).
-      • Ograniczona przepustowość LoRa: przesyłanie plików jest wolne i podatne na zakłócenia przy dużych rozmiarach danych.
-      • Regulacje prawne pasma 433 MHz (konieczność respektowania ograniczeń czasu nadawania - duty cycle).
-  • Wnioski z realizacji:
-      • Potwierdzono możliwość stworzenia w pełni funkcjonalnego, bezpiecznego komunikatora off-grid na podzespołach o łącznym koszcie poniżej 150 zł.
-      • Wykorzystanie biblioteki Monocypher zapewniło czas szyfrowania i deszyfrowania rzędu pojedynczych milisekund, co jest pomijalne w stosunku do czasu transmisji radiowej w kanale LoRa (Time-on-Air).
-  • Kierunki dalszego rozwoju:
-      • Migracja na mikrokontroler RP2350 (rdzeń Cortex-M33, obsługa ARM TrustZone, sprzętowe akceleratory SHA-256 i bezpieczny rozruch Secure Boot).
-      • Dodanie kompresji danych (np. algorytm heatshrink lub miniz) przed szyfrowaniem w celu skrócenia czasu Time-on-Air przy transferze tekstu i plików.
-      • Opcjonalny routing wieloskokowy (mesh) dla małej liczby węzłów.
+• Samokrytyka i ograniczenia rozwiązania (bardzo cenione na obronie):
+• Brak sprzętowego bezpiecznego magazynu kluczy (RP2040 w wersji A nie posiada wbudowanego bezpiecznego elementu CryptoAuth ani sprzętowego szyfrowania pamięci Flash – klucze są chronione programowo).
+• Ograniczona przepustowość LoRa: przesyłanie plików jest wolne i podatne na zakłócenia przy dużych rozmiarach danych.
+• Regulacje prawne pasma 433 MHz (konieczność respektowania ograniczeń czasu nadawania - duty cycle).
+• Wnioski z realizacji:
+• Potwierdzono możliwość stworzenia w pełni funkcjonalnego, bezpiecznego komunikatora off-grid na podzespołach o łącznym koszcie poniżej 150 zł.
+• Wykorzystanie biblioteki Monocypher zapewniło czas szyfrowania i deszyfrowania rzędu pojedynczych milisekund, co jest pomijalne w stosunku do czasu transmisji radiowej w kanale LoRa (Time-on-Air).
+• Kierunki dalszego rozwoju:
+• Migracja na mikrokontroler RP2350 (rdzeń Cortex-M33, obsługa ARM TrustZone, sprzętowe akceleratory SHA-256 i bezpieczny rozruch Secure Boot).
+• Dodanie kompresji danych (np. algorytm heatshrink lub miniz) przed szyfrowaniem w celu skrócenia czasu Time-on-Air przy transferze tekstu i plików.
+• Opcjonalny routing wieloskokowy (mesh) dla małej liczby węzłów.
 // AI NOTE!!!!!!!!!!!!
 
 // AI NOTE!!!
-  Wskazówki do Bibliografii (co cytować):
+Wskazówki do Bibliografii (co cytować):
 
-  1. Semtech Corporation – Dokumentacja układu SX1261/SX1262 (SX1261/2 Data Sheet).
-  2. Raspberry Pi Ltd. – RP2040 Datasheet oraz Raspberry Pi Pico C/C++ SDK.
-  3. L. Louédic (Monocypher) – Oficjalna dokumentacja i specyfikacja biblioteki kryptograficznej Monocypher.
-  4. RFC 7748 – Elliptic Curves for Security (Krzywe Curve25519 / X25519).
-  5. RFC 8439 – ChaCha20 and Poly1305 for IETF Protocols.
-  6. Artykuły naukowe z IEEE Xplore dotyczące analizy zasięgu modulacji LoRa (hasła: LoRa path loss models, LoRa CSS performance under noise).
-  7. Normy ETSI dotyczące wykorzystania pasm nielicencjonowanych ISM w Europie (Short Range Devices - SRD).
+1. Semtech Corporation – Dokumentacja układu SX1261/SX1262 (SX1261/2 Data Sheet).
+2. Raspberry Pi Ltd. – RP2040 Datasheet oraz Raspberry Pi Pico C/C++ SDK.
+3. L. Louédic (Monocypher) – Oficjalna dokumentacja i specyfikacja biblioteki kryptograficznej Monocypher.
+4. RFC 7748 – Elliptic Curves for Security (Krzywe Curve25519 / X25519).
+5. RFC 8439 – ChaCha20 and Poly1305 for IETF Protocols.
+6. Artykuły naukowe z IEEE Xplore dotyczące analizy zasięgu modulacji LoRa (hasła: LoRa path loss models, LoRa CSS performance under noise).
+7. Normy ETSI dotyczące wykorzystania pasm nielicencjonowanych ISM w Europie (Short Range Devices - SRD).
 // AI NOTE!!!
+
+== Bibliografia
+
+#bibliography("biblio/etsi_300_220_2.bib", title: "Bibliografia", style: "ieee")
