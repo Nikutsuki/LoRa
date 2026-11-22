@@ -198,6 +198,29 @@ Zasady użytkowania pasm ISM (_Industrial, Scentific, Medical_) i SRD (ang. _Sho
 
 == Przegląd istniejących rozwiązań łączności P2P
 
+=== LoRaWAN 
+
+LoRaWAN to otwarty (open-source) protokół operujący w warstwie MAC i warstwie sieciowej zarządzanym przez LoRa Alliance, działa on bezpośrednio nad fizyczną warstwą LoRa. Architektura LoRaWAN bazuje na topologii *gwiazdy gwiazd* (_stars-of-stars_), w której urządzenia końcowe (_End Devices_, ED) wysyłają pakiety tylko w komunikacji jednoskokowej (_single-hop_) za pomocą niesynchronizowanego protokołu ALOHA do bramek (_Gateways_, GW). Bramki pełnią tylko rolę mostów przekazujących pakiety LoRa poprzez łącze IP (poprzez protokół MQTT) do infrastruktury serwerowej. 
+
+\ Siecią LoRaWAN zarządzają trzy komponenty serwerowe:
+- *Network Server (LNS/NS)* odpowiedzialny jest za deduplikację tych samych pakietów które zostały odebrane przez różne bramki, jak i zarządzanie warstwą MAC.
+- *Join Server (JS)* zajmuje się przechowywaniem kluczy głównych (_NwkKey_, _AppKey_), oraz obsługuje procedurę uwierzytelniania i generuje klucze sesji.
+- *Application Server (AS)* zajmuje się odbieraniem i deszyfrowaniem danych aplikacji.
+
+\ Zastosowanie LoRaWAN w celu autonomicznej komunikacji _off_grid_ uniemożliwia między innymi:
+- Brak wieloskokowego routingu pomiędzy węzłami końcowymi, w efekcie utrata zasięgu do bramki sprawia że urządzenie zostaje sparaliżowane, nowsze rozszerzenia protokołu wprowadzają "węzły przekaźnikowe (_relay_)" ograniczone do maksymalnie 16 urządzeń na przekaźnik i wyłącznie przekazywanie pakietów w stronę bramki.
+- LoRaWAN wymaga kosztownych bramek i sprawnego, stałego łącza do serwerów LNS i JS, Join Server stanowi aktualnie pojedynczy punkt awarii (_single point of failure_) jeśli chodzi o uwierzytelnianie i bezpieczeństwo.
+- Klasy pracy protokołu (Klasa A, B, C) zostały zaprojektowane z myślą o wysyłaniu asymetrycznej telemetrii do chmury, energooszczędna Klasa A posiada krótkie okno odbiorcze wyłączenie po własnej transmisji, co uniemożliwia asynchroniczną wymianę wiadomości _peer-to-peer_, natomiast ciągłe nasłuchiwanie w Klasie C, jest bardzo energochłonne i zmniejsza czas życia urządzenia na baterii.
+
+=== Meshtastic i routing mesh flooding
+
+Meshtastic jest otwartym projektem typu _mesh_ który wykorzystuje technologię LoRa w nielicencjonowanych pasmach ISM w celach w komunikacji tekstowej, udostępniania pozycji GPS, lub telemetrii bez użycia infrastruktury GSM. Meshtastic nie korzysta z bramek lub serwerów centralnych, protokół implementuje algorytm *managed flooding*, polega on na kontrolowanym zalewaniu sieci z jednoczesnym tłumieniem retransmisji. Dzięki temu urządzenia nie muszą przechowywać tablic routingu ani topologii, każdy pakiet posiada parametr _hop limit_ który jest zmniejszany o jeden po każdym przekazaniu aż osiągnie wartość 0, urządzenia opóżniają transmisję pakietów, i rezygnują z niej całkowicie jeśli odbiorą że dany pakiet został retransmitowany.
+
+\ Największą zaletą Meshtastic jest gotowość do pracy od razu po włączeniu urządzenia, bez konfiguracji, oraz jedna z największych społeczności wśród otwartych sieci LoRa, co czyni go najlepszym i najłatwiej dostępnym kandydatem do szybkiego wdrożenia w sytuacji kryzysowej, w obszarze pozbawionym tradycyjnej infrastruktury telekomunikacyjnej. Nie jest on jednak pozbawiony problemów, najważniejsze z nich to:
+- Ograniczona skalowalność i zatory, LoRa posiada przepustowość rzędu kilkuset bitów na sekundę, przez to że kanał jest współdzielony w przypadku większych lub gęstych sieci mechanizm _floodingu_ powoduje kolizje, gubienie pakietów (_packet loss_) oraz opóżnienia.
+- Restrykcje Duty Cycle powodują że pomimo wolnego kanału, urządzenia są zmuszone przestać nadawać, przez co nie mogą retransmitować pakietów, i następuje fragmentacja topologii sieci.
+- Limit liczby przeskoków oraz nieoptymalne przesyłanie pakietów, Meshtastic nie optymalizuje kierunku przesyłu pakietów i po prostu przesyła każdy pakiet dalej, co w rezultacie skutkuje przesyłaniem pakietów w kierunku przeciwnym do odbiorcy docelowego, jak i ograniczony zasięg komunikacji.
+
 == Kryptografia w systemach wbudowanych
 
 == Istniejące ekosystemy
