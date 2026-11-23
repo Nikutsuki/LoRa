@@ -132,29 +132,31 @@ $
 
 \ gdzie $N_"pre"$ to liczba sygnałów preambuły, PL to ilość przesyłanych bajtów danych, $"CR"_"idx"$ to liczba $"idx" in {1,2,3,4}$ odpowiadająca odpowiednio dla CR 4/5-4/8, parametr DE jest równy 1 przy włączonej optymalizacji niskich przepustowości (stosuje się ją dla SF11 i SF12 przy BW 125 kHz). Według tego wzoru pakiet o długości 20 bajtów, z podstawowym kodowaniem CR 4/5, BW 125 kHz, oraz SF10, będzie przesyłany przez 0.370688 sekund, lub 370.688 milisekund.
 
-#{
-  set par(justify: false)
-  set text(size: 9.5pt)
-  set par(leading: 0.55em)
-  table(
-    columns: (auto, auto, auto, auto),
-    table.header([*Parametr*], [*Przyjmowane wartości*], [*Wpływ na Time on Air*], [*Wpływ na przesył danych*]),
-    [Spreading Factor (SF)],
-    [SF7 - SF12 (SX1276 wspiera SF6)],
-    [Zwiększenie o 1 podwaja $T_"sym"$ oraz ToA],
-    [Większe wartości SF obniżają próg wymaganego SNR aby poprawnie zdekodować wiadomość, lecz bardzo wydłużają ToA i ryzyko kolizji],
+#figure({
+    set par(justify: false)
+    set text(size: 9.5pt)
+    set par(leading: 0.55em)
+    table(
+      columns: (auto, auto, auto, auto),
+      table.header([*Parametr*], [*Przyjmowane wartości*], [*Wpływ na Time on Air*], [*Wpływ na przesył danych*]),
+      [Spreading Factor (SF)],
+      [SF7 - SF12 (SX1276 wspiera SF6)],
+      [Zwiększenie o 1 podwaja $T_"sym"$ oraz ToA],
+      [Większe wartości SF obniżają próg wymaganego SNR aby poprawnie zdekodować wiadomość, lecz bardzo wydłużają ToA i ryzyko kolizji],
 
-    [Bandwidth (BW)],
-    [125 - 250 kHz (SX1276: 7.8 - 500 kHz)],
-    [Odwrotnie proporcjonalny do $T_"sym"$ (Podwojenie BW skraca symbol w pół)],
-    [Szersze pasmo przyspiesza prędkość transmisji, ale wpuszcza do odbiornika więcej szumu tła, obniżając czułość],
+      [Bandwidth (BW)],
+      [125 - 250 kHz (SX1276: 7.8 - 500 kHz)],
+      [Odwrotnie proporcjonalny do $T_"sym"$ (Podwojenie BW skraca symbol w pół)],
+      [Szersze pasmo przyspiesza prędkość transmisji, ale wpuszcza do odbiornika więcej szumu tła, obniżając czułość],
 
-    [Coding Rate (CR)],
-    [4/5, 4/6, 4/7, 4/8],
-    [Zwiększa rozmiar pakietu proporcjonalnie do wybranego kodowania],
-    [Wyższe wartości zwiekszają nadmiarowość dla poprawy odporności na błędy, ale zwiększają ToA],
-  )
-}
+      [Coding Rate (CR)],
+      [4/5, 4/6, 4/7, 4/8],
+      [Zwiększa rozmiar pakietu proporcjonalnie do wybranego kodowania],
+      [Wyższe wartości zwiekszają nadmiarowość dla poprawy odporności na błędy, ale zwiększają ToA],
+    )
+  },
+  caption: [Parametry modulacji LoRa i ich efekt na transmisję]
+)
 
 === Czułość odbiornika poniżej progu szumów i duty cycle
 
@@ -221,17 +223,107 @@ Meshtastic jest otwartym projektem typu _mesh_ który wykorzystuje technologię 
 - Restrykcje Duty Cycle powodują że pomimo wolnego kanału, urządzenia są zmuszone przestać nadawać, przez co nie mogą retransmitować pakietów, i następuje fragmentacja topologii sieci.
 - Limit liczby przeskoków oraz nieoptymalne przesyłanie pakietów, Meshtastic nie optymalizuje kierunku przesyłu pakietów i po prostu przesyła każdy pakiet dalej, co w rezultacie skutkuje przesyłaniem pakietów w kierunku przeciwnym do odbiorcy docelowego, jak i ograniczony zasięg komunikacji.
 
+=== Reticulum Network Stack i Disaster Radio
+
+*Reticulum Network Stack (RNS)* to zaprojektowany przez Marka Qvista stos siecowy skupiający sie na kryptografii, działa on w przestrzeni użytkownika (_userland_) i nie wykorzystuje protokołu IP (istnieje jednak możliwość tunelowania ruchu przez TCP/UDP). Kluczową zaletą RNS jest to że działa na dużej ilości typów łącz. Jeden system automatycznie bez dodatkowej konfiguracji łączy moduły radiowe (LoRa/RNode, VHF/UHF, TNC/KISS), siecią IP poprzez Wi-Fi lub Ethernet, portami szeregowymi, stdio czy I2P, a jednocześnie automatycznie zarządza ruchem i daje priorytet dla komunikacji lokalnej.
+
+\ Reticulum zamiast prostego floodingu implementuje wieloskokowe trasowanie z wydzielaniem węzłów transportowych (_transport nodes_), które pełnią rozproszonego magazynu kluczy, ważne jest że nie każdy węzeł w sieci jest węzłem transportowym, ponieważ prowadzi to do degradacji wydajności. Adresowanie działa na podstawie zdecentralizowanych skrótach kluczy publicznych (destinations) a pakiety nie posiadają adresów nadawcy, co zapewnia anonimowość inicjatora. Cały ruch zabezpiecza szyfrowanie _end-to-end_ przy użyciu tymczasowych kluczy X25519. Aby nawiązać w pełni szyfrowaną sesję wymagane są zaledwie 3 pakiety, o łącznym rozmiarze 297 bajtów, a utrzymanie jej potrzebuje tylko 0.44 bps. RNS wykorzstuje między innymi:
+- Nomad Network
+- Protokół LXMF
+
+\ Należy pamiętać że autor sam ostrzega że stos jest młody, i nie przeszedł jeszcze żadnego zewnętrznego audytu bezpieczeństwa.
+
+\ *Disaster Radio* jest projektem który skupia się na budowie tanich, zasilanych solarnie, węzłów łączności kryzysowej, głównie na mikrokontrolerach ESP32 z modułem LoRa. Największą cechą wyróżniającą projekt jest możliwość korzystania z aplikacji bez instalacji klienta, urządzenie rozgłasza sieć Wi-Fi w której pod adresem 192.168.4.1 udostępnia interfejs poprzez serwer HTTP oraz WebSockets (alternatywą jest aplikacja Android i łączność poprzez Bluetooth). Projekt korzysta z autorskiego protokołu na bazie LoRaLayer2, każdy węzeł posiada swój unikalny 4 bajtowy adres, oraz dla każdego odebranego pakietu podejmuję decyzję o retransmisji. Projekt pozwala również na zapisywanie historii wiadomościna karcie SD. 
+
+=== Porównanie istniejących technologii
+
+#figure({
+  set par(justify: false)
+  set text(size: 9.5pt)
+  set par(leading: 0.55em)
+  table(
+    columns: (auto, auto, auto, auto),
+    table.header([*Technologia*], [*Architektura*], [*Medium i kryptografia*], [*Ograniczenia*]),
+    [LoRaWAN], [*Gwiazda gwiazd*, wymagana centralna infrastruktura], [Tylko LoRa, AES-128], [Brak możliwości pracy off-grid],
+    [Meshtastic], [*Kratowa (_mesh_)* brak infrastruktury centralnej], [Tylko LoRa, Szyfrowanie kanałowe], [Kolizje oraz wysoki pobór mocy],
+    [Disaster Radio], [*Kratowa (_mesh_)* brak infrastruktury centralnej], [LoRa + Wi-Fi / BLE, brak szyfrowania E2EE], [Ograniczona funkcjonalność],
+    [Reticulum], [*Multi-hop*, wydzielone węzły transportowe, brak centralnej infrastruktury], [LoRa (RNode), Ethernet, Wi-Fi, I2P, KISS, TCP/UDP, E2EE (X25519, Ed25519)], [Brak zewnętrznego audytu bezpieczeństwa]
+  )
+  },
+  caption: [Porównanie przykładowych systemwów komunikacji bazujących na technologii LoRa]
+)
+
+#pagebreak()
+
 == Kryptografia w systemach wbudowanych
 
-== Istniejące ekosystemy
+=== Wyzwania braku akceleracji sprzętowej mikrokontrolerów ARM Cortex
 
-// AI NOTE!!!!!!!!!!!
-• Meshtastic: Najpopularniejszy projekt open-source. Opisz jak działa (mesh flooding). Wskaż jego wady: konieczność używania smartfona przez Bluetooth/WiFi lub skomplikowanego UI, duży pobór energii
-na ESP32, narzut protokołu.
-• LoRaWAN: Standard przemysłowy. Wyjaśnij, dlaczego nie nadaje się do Twojego celu (wymaga stałych bramek/gatewayów, serwera sieciowego i gwiazdy topologii – brak bezpośredniej łączności P2P między
-dwoma użytkownikami w lesie/górach).
-• Disaster Radio / Reticulum Network Stack: Przykłady alternatywnych stosów ad-hoc.
-// AI NOTE!!!!!!!!!!!
+Implementacja nowoczesnych algorytmów kryptografii na prostych, tanich, oraz energooszczędnych mikrokontrolerach ARM Cortex-M0 oraz ARM Cortex-M0+ szybko napotyka problemy poprzez ograniczenia sprzętowe. Mikrokontroler Cortex-M0 posiada tylko 16 rejestrów 32-bitowych (R0-R15), trzy górne są zarezerwowane przez system i pełnią funkcje:
+- R13 - wskaźnik stosu
+- R14 - rejestr powrotu
+- R15 - licznik programu
+
+\ Pozostawia to 13 rejestrów dla programu, a w przypadku trybu "Thumb", instrukcje arytmetyczne mają dostęp tylko do rejestrów R0-R7, w celu przetwarzania 256-bitowych liczb. Drugim problemem są ograniczenia pamięciowe, popularny układ STM32F051 posiada tylko 8 KB pamięci RAM i 64 KB pamięci Flash.
+
+\ Na wydajność obliczeniową tych mikrokontrolerów wpływa między innymi:
+- Zastosowanie architektury von Neumanna, która współdzieli pojedynczą magistralę zarówno dla instrukcji jak i danych, co sprawia ze operacje odczytu oraz zapisu pamięci (LDR / STR, jak i LDM / STM które wymagają n + 1 cykli procesora) wprowadzają opóźnienia, i sprawiają że procesor musi czekać aby pobrać następną instrukcję programu, w rezultacie ilość wykonywanych instrukcji na sekundę (MIPS) maleje. 
+- Brak instrukcji DSP, układów wektorowych SIMD, oraz mnożenia rozszerzającego UMULL, dostępne są one dopiero w droższych mikrokontrolerach Cortex-M4.
+- Dostępne jest jedynie mnożenie 32-bitowe MULS, w zależności od tego jak jest zaimplementowane wykonuje się w 1 cykl procesora, lub aż w 32 cykle procesora w układach zoptymalizowanych pod minimalną powierzchnię układu.
+- Brak koprocesorów AES oraz jednostek mnożenia bezprzeniesieniowego (carry-less multiplication) wykorzystywanych w celu uwierzytelniania GHASH.
+
+\ Dużym problemem jest również podatność na tak zwane _side channel attacks_. Czas wykonywania instrukcji może ulegać fluktuacjom z powodu konfliktu na magistrali podczas operacji DMA, oczekiwania na pamięć lub tego która gałąź programu została wybrana na podstawie tajnych bitów. Każdy algorytm kryptograficzny powinien być realizowany w sposób stałoczasowy (_constant-time_), bez instrukcji warunkowych które powodują rozgałęzienie programu i tablic indeksowanych tajnymi danymi.
+
+=== RSA vs ECC oraz Curve25519
+
+W systemach wbudowanych oraz sieciach LoRa klasyczna kryptografia RSA została zastąpiona przez kryptografię krzywych eliptycznych (ECC), ECC osiąga poziom bezpieczeństwa podobny do tradycyjnego RSA, przy znacząco krótszych kluczach (128-bitowe klucze AES, odpowiadają 256-bitowym kluczom ECC (32 bajty), lub 2048-bitowym kluczom RSA). Rozmiar kluczy i podpisów stanowi kluczową zaletę ECC względem innych rozwiązań w przypadku transmisji radiowej takiej jak LoRa, ze względu na mocno ograniczony rozmiar ładunku i restrykcyjny limit _duty cycle_. Inną zaletą krzywych eliptycznych jest to że na mikrokontrolerach które nie posiadają akceleracji sprzętowej do algorytmów takich jak RSA, są one dużo bardziej wydajne, zarówno w kwestii energii jak i cykli procesora.
+
+\ Standardem krzywych eliptycznych jest krzywa *Curve25519* (TLS 1.3, Signal, OpenSSH, Reticulum, WireGuard), a protokołem uzgadniania kluczy *X25519* (RFC 7748), schematem podpisów cyfrowych natomiast *Ed25519* (RFC 8032, NIST FIPS 186-5). Innymi opcjami są krzywe NIST takie jak P-256 lub secp256r1, *Curve25519* jest jednak od nich lepsza w następujących dziedzinach:
+- Zdefiniowana jest jako krzywa Montgomery'ego $y^2 = x^3 + 486662x^2 + x$ nad ciałem pierwszym o specjalnej postaci p = $p = 2^255 - 19$ co przyspiesza i upraszcza redukcję modularną. Badania implementacji pokazują 5-krotne skrócenie czasu wykonania względem NIST P-256 na mikrokontrolerach.
+- Wymiana kluczy X25519 używa algorytmu *drabinki Montgomery'ego*, który operuje tylko na współrzędnej $x$ punktu. Każdy krok algorytmu wykonuje stałą sekwencję operacji, jednego podwajania, jednego różnicowego dodawania, niezależnie od danych wejściowych, co zapewnia bezpieczeństwo przeciwko atakom _side channel_.
+- *Ed25519* bazuje na równoważnej krzywej skręconej Edwardsa o kompletnych wzorach dodawania (oznacza to że działają one bez wyjątków dla dowolnie wybranych punktów na krzywej), wprowadza on również parametr losowy za pomocą SHA-512, aby uniknąć ryzyka wycieku klucza w przypadku słabego generatora liczb losowych (wada z ECDSA).
+
+#figure({
+  set par(justify: false)
+  set text(size: 9.5pt)
+  set par(leading: 0.55em)
+  table(
+    columns: (auto, auto, auto, auto),
+    table.header([*Implementacja*], [*Architektura*], [*Cykle CPU*], [*Charakterystyka pomiaru*]),
+    [*X25519* (Dülli inni, 2015)], [ARM Cortex-M0], [3 589 850 cykli], [Asembler ARMv6-M, około 8 KiB kodu],
+    [*X25519* (Pornin, x25519-cm0)], [ARM Cortex-M0 / M0+], [3 229 950 cykli], [Pełna zgodność z RFC 7748, i odporność na _side channel attacks_],
+    [*Ed25519 podpis*], [ARM Cortex-M0], [$approx$3 000 000 cykli], [Wersja bez tablic prekomputowanych],
+    [*Ed25519 weryfikacja*], [ARM Cortex-M0], [$approx$5 700 000 cykli], [Wersja zoptymalizowana pod rozmiar kodu]
+  )
+  },
+  caption: [Porównanie kosztu obliczeniowego poszczególnych implementacji X25519 oraz Ed25519]
+)
+
+=== ChaCha20-Poly1305 vs AES-GCM i szyfrowanie symetryczne
+
+Nowoczesne protokoły takie jak TLS 1.3, WireGuard, QUIC, bazują integralność i poufność danych na dwóch metodach enkrypcji *AEAD*, *AES-GCM* i *ChaCha20-Poly1305*. Pomimo tego że oba algorytmy realizują ten sam cel, to na prostych mikrokontrolerach bez sprzętowej akceleracji kryptograficznej *ChaCha20-Poly1305* jest bezpieczniejszy i szybszy niż *AES-GCM*.
+
+\ Największą wadą programowej implementacji AES są ataki czasowe (_timing attacks_). W celu przyspieszenia działania AES na procesorach 32-bitowych, operacje łączy się w duże tablice przeglądowe (_T-tables_). Ponieważ indeksy odczytów z tabeli zależą od klucza, minimalne wahania w czasie dostępu do pamięci mogą ujawnić wartość klucza (podatności w wolfSSL do wersji 5.6.5 na mikrokontrolerach Cortex-M). Zabezpieczanie programowe AES przed tego typu atakami wymaga skomplikowanych technik (_bitslicing_) które znacząco spowalniają kod. Szyfr *ChaCha20* w pełni eliminuje ten problem, jest to algorytm z rodziny ARX (_Addition-Rotation-XOR_) które wykorzystują tylko proste operacje arytmetyczno-logiczne: dodawanie, przesunięcie cykliczne, oraz operację XOR. Nie korzysta on również z tablic przeglądowych, i nie posiada rozgałęzień, co sprawia że czas wykonia *ChaCha20* jest stały (_constant_time_), zapewnia to odporność na ataki typu _side-channel_ bez spowalniania działania programu.
+
+\ Drugim powodem dlaczego *ChaCha20-Poly1305* jest lepszym wyborem na mikrokontrolerach jest dużo niższy koszt wykonania algorytmu. Funkcja sprawdzająca integralność w AES-GCM (GHASH) wymaga operacji w ciele $"GF"(2^128)$, proste mikrokontrolery nie posiadają akceleracji sprzętowej tych operacji, więc muszą je emulować co jest od dwóch do czterech razy wolniejsze niż szyfrowanie, i znacząco spowalnia układ, nawet w przypadku w którym mikrokontroler posiada akcelerację AES.
+
+\ Algorytm *Poly1305* bazuje na zwykłej arytmetyce liczb całkowitych (modulo $2^130 - 5$), są to podstawowe instrukcje w procesorach 32-bitowych. Dzięki temu na procesorach ARM Cortex-M0 bez akceleracji sprzętowej, *ChaCha20-Poly1305* działa do 3 razy szybciej niż AES-GCM. Z tego powodu standard TLS 1.3 zaleca *Poly1305* jako preferowany algorytm dla urządzeń bez sprzętowej akceleracji AES.
+
+\ Należy pamiętać że żaden z tych algorytmów nie jest odporny na użycie tego samego wektora _nonce_ dwa razy (w przypadku losowej generacji wektora zalecane jest użycie *XChaCha20-Poly1305* gdzie _nonce_ ma rozmiar 192 bitów).
+
+=== Problem wymiany kluczy bez serwera centralnego: TOFU i podpisy cyfrowe
+
+Nawet bezbłędna implementacja *X25519* oraz *ChaCha20-Poly1305* nie chroni przed atakiem _Man-in-the-middle_ (MITM), prze brak możliwości powiązania klucza publicznego z tożsamością. Rozproszone sieci _off-grid_ z definicji nie mają możliwości użycia centralnego serwera uwierzytelniającego.
+
+\ W rezultacie w niezależnych sieciach _off-grid_ stosuje się model *Trust On First Use (TOFU)* obecny między innymi w protokole SSH lub komunikatorach takich jak Signal. Model TOFU polega na zapisaniu klucza publicznego rozmówcy podczas pierwszego nawiązania połączenia, i od tego momentu domyślnie ufa mu, następnie przy każdej kolejnej interakcji, klucz jest sprawdzany, i w przypadku gdy się nie zgadza, użytkownik otrzymuje komunikat o potencjalnych ataku MITM. Pomimo tego że model TOFU zapewnie wysoką użyteczność w sieciach zdecentralizowanych, istnieje w nim jedną krytyczna podatność, czyli podmiana klucza w trakcie pierwszej wymiany.
+
+\ W celu wyeleminowania tej podatności, stosuje się trzy uzupełniające się mechanizmy:
+- *Odciski kluczy (fingerprints)* - skrót klucza publicznego, prezentowany za pomocą znaków lub kodu QR. Porównanie ich poprzez zeskanowanie twarzą w twarz, weryfikuje zaufanie.
+- *Krótkie ciągi uwierzytelniające (SAS - Short Authentication Strings)* - metoda z protokołu ZRTP, gdzie obie strony odczytują na głos ciąg znaków wynikający z wcześniej uzgnodnionego sekretu co łączy kryptografię z biometrią.
+- *Podpisy cyfrowe* - długoterminowy klucz który służy do podpisywania kluczy wymiany lub zaufanych urządzeń. Pozwala nam to ograniczyć ilość ręcznych weryfikacji odcisków w zespołach z wieloma urządzeniami. Sam podpis jednak gwarantuje jedynie ciągłość posiadania klucza, i nie zastępuje potwierdzenia tożsamości.
+- *Wspólne hasła (PSK - Pre-Shared Key)* - Polega to na tym że przed wdrożeniem członkowie zespołu ustalają poza pasmem wspólne hasło, za pomocą którego generowany jest klucz szyfrujący przy użyciu funkcji wyprowadzania kluczy (Argon2, KDF, HKDF). W nowoczesnych rozwiązaniach używa się również protokołów PAKE (Password-Authenticated Key Exchange), dzięki którym możemy uwierzytelnić wymianę kluczy asymetrycznych za pomocą krótkiego hasła nie ujawniając go w sieci. Jednym z minusów tego rozwiązania jest konieczność bezpiecznego rozpowszechnienia sekretu przed połączeniem, oraz utrata poufności całej sieci w sytuacji w której jedno urządzenie zostanie przejęte, a klucz odczytany z pamięci.
+
+\ Ważnym wnioskiem z badań użyteczności zabezpieczeń (_"SoK: Secure Messaging"_ i _"Secure Messaging Authentication Ceremonies Are Broken"_) jest to, że jeśli weryfikacja użytkowników ukryta jest w menu, to niemal nikt jej nie używa, i nie rozumie zagrożenia MITM. Dopiero w sytuacji gdy interfejs użytkownika jasno mówi że kontakt jest niezweryfikowany, zrozumienie ceremonii weryfikacji wzrosło z 16% do 50%, a znaczenie zaufanych identyfikatorów z 27% do 56%, należy więc pamiętać że przy projektowaniu urządzeń _off-grid_ mechanizm zaufania kontaktów powinien być jasnym i integralnym elementem parowania urządzeń.
 
 = Wybrane algorytmy
 
