@@ -109,7 +109,7 @@ LoRa (Long Range) to technologia transmisji radiowej opracowana przez firmę Sem
 \ Dwa rodzaje sygnałow dają tylko dwie wartości które można przesłać, dlatego LoRa wykorzystuje kodowanie M-arne, w którym $M = 2^("SF")$ a pojedynczy symbol zawiera $"SF"$ bitów danych @semtech_an1200.
 Aby móc reprezentować symbol z zakresu $s in {0, 1, ..., 2^("SF")-1}$ bazowy "up-chirp" podlega cyklicznemu przesunięciu czasowemu (cyclic shift) zależnie od wartości $s$. W efekcie na wykresie częstotliwości względem czasu sygnał zaczyna się od częstotliwości odpowiadającej symbolowi $s$, liniowo narasta do górnej granicy pasma, a następnie "zawija" się z powrotem do dolnej krawędzi pasma i kontynuuje aż do częstotliwości startowej.
 
-\ W pakiecie LoRa wykorzystywane są oba rodzaje przebiegów, aby precyzyjnie zsynchronizować czas i częstotliwość. Preambuła pakietu składa się z 8 sygnałów "up-chirp" (jest ona natomiast konfigurowalna, bazowo 8, w SX1276 minimum 6), a następnie z 2 zakodowanych sygnałów "up-chirp" _*Sync word*_ służących do identyfikacji sieci oraz 2,25 nieprzesuniętego sygnału "down-chirp" sygnalizującego początek danych (_SFD, Start frame delimiter_) @sx1276_datasheet @sensors_lora_2024. Po stronie odbiorcy sygnał podlega operacji "de-chirpingu", czyli przemnożeniu odebranego sygnału przez bazowy sygnał o przeciwnym nachyleniu (down-chirp) co przekształca cykliczne przesunięcie czasowe w przebieg o stałej częstotliwości. Następnie stosuje się dyskretną transformatę Fouriera (DFT) która skupia rozproszoną energię przebiegu w odrębnym wąskim prążku widma, co pozwala na detekcję poniżej poziomu szumów.
+\ W pakiecie LoRa wykorzystywane są oba rodzaje przebiegów, aby precyzyjnie zsynchronizować czas i częstotliwość. Preambuła pakietu składa się z 8 sygnałów "up-chirp" (jest ona natomiast konfigurowalna, bazowo 8, w SX1276 minimum 6), a następnie z 2 zakodowanych sygnałów "up-chirp" _*Sync word*_ służących do identyfikacji sieci oraz 2,25 nieprzesuniętego sygnału "down-chirp" sygnalizującego początek danych (_SFD, Start frame delimiter_) @sx1276_datasheet @sensors_lora_2024. Po stronie odbiorcy sygnał podlega operacji "de-chirpingu", czyli przemnożeniu odebranego sygnału przez bazowy sygnał o przeciwnym nachyleniu (down-chirp) co przekształca cykliczne przesunięcie czasowe w przebieg o stałej częstotliwości. Następnie stosuje się dyskretną transformatę Fouriera (DFT) która skupia rozproszoną energię przebiegu w odrębnym wąskim prążku widma, co pozwala na detekcję poniżej poziomu szumów @semtech_an1200.
 
 === Parametry transmisji
 
@@ -118,14 +118,14 @@ Transmisja LoRa posiada trzy parametry które możemy kontrolować, są to:
 - szerokość pasma (Bandwidth, BW)
 - stopa kodowania korekcyjnego (Coding Rate, CR)
 
-\ Czas trwania pojedynczego przebiegu można policzyć z następującego wzoru:
+\ Czas trwania pojedynczego przebiegu można policzyć z następującego wzoru @semtech_an1200[s. 10]:
 $ T_"sym"= 2^("SF")/"BW" $
 
 \ Standard LoRa przewiduje współczynnik SF w przedziale od SF7 do SF12 (układ SX1276 dodatkowo wspiera SF6),
-co przekłada się na od 128 do 4096 "chipów" na jeden symbol. Podniesienie SF o jeden stopień, powoduje podwojenie długości symbolu oraz czas jego obecności na kanale (Time on Air, ToA), maleje za to przepustowość w zamian za czułość odbiornika i odporność na szum. Natomiast szerokość pasma (BW) wynosi 125 kHz lub 250 kHz (moduł SX1276 obsługuje wartości od 7.8 kHz do 500 kHz). Poszerzenie pasma podwójnie, skraca o połowę czas trwania przebiegu, i zwiększa przepustowość, ale zwiększa ilość szumu w odbiorniku o $10log_10("BW"_2/"BW"_1)$ dB co pogarsza czułość.
+co przekłada się na od 128 do 4096 "chipów" na jeden symbol @sx1276_datasheet[s. 27]. Podniesienie SF o jeden stopień, powoduje podwojenie długości symbolu oraz czas jego obecności na kanale (Time on Air, ToA), maleje za to przepustowość w zamian za czułość odbiornika i odporność na szum. Natomiast szerokość pasma (BW) wynosi 125 kHz lub 250 kHz (moduł SX1276 obsługuje wartości od 7.8 kHz do 500 kHz). Poszerzenie pasma podwójnie, skraca o połowę czas trwania przebiegu, i zwiększa przepustowość, ale zwiększa ilość szumu w odbiorniku o $10log_10("BW"_2/"BW"_1)$ dB co pogarsza czułość @semtech_an1200.
 
 \ Korekcja błędów której używa LoRa to "FEC" (forward error correction), dostępne są 4 stopnie kodowania, od CR 4/5 do CR 4/8, wartość CR 4/5 zapewnia 20% nadmiarowości (1 bit korekcyjny na 4 bity przesyłanych danych),
-wartość CR 4/8 zapewnia 100% nadmiarowości co zapewnia naprawę błędów w środowiskach o silnych zakłóceniach. LoRa stosuje układ przeplotu (interleaver), który rozprasza bity wiadomości pomiędzy wieloma słowami kodowymi, w rezultacie nawet najlżejszy i najszybszy kod 4/5 zapewnia istotną odporność na błędy. Całkowity czas trwania pakietu (Time on Air) na podstawie wzoru ze specyfikacji Semtech wynosi
+wartość CR 4/8 zapewnia 100% nadmiarowości co zapewnia naprawę błędów w środowiskach o silnych zakłóceniach. LoRa stosuje układ przeplotu (interleaver), który rozprasza bity wiadomości pomiędzy wieloma słowami kodowymi, w rezultacie nawet najlżejszy i najszybszy kod 4/5 zapewnia istotną odporność na błędy @semtech_an1200. Całkowity czas trwania pakietu (Time on Air) na podstawie wzoru ze specyfikacji Semtech wynosi @semtech_an1200[s. 10] @sx1276_datasheet[sekcja 4.1.1.6, s. 29--31]
 $
   T_"air" = (N_"pre" + 4.25) * T_"sym" + [8 + max(ceil((8 * "PL" - 4 * "SF" + 44)/(4("SF" - 2 * "DE")))*("CR"_"idx" + 4), 0)] * T_"sym"
 $
@@ -160,21 +160,21 @@ $
 
 === Czułość odbiornika poniżej progu szumów i duty cycle
 
-LoRa pozwala na dekodowanie sygnałów poniżej progu szumów poprzez skupienie energii rozproszonego sygnału w jednym wąskim prążku podczas "de-chirpingu", teoretyczną czułość odbiornika w dBm wyznacza równanie:
+LoRa pozwala na dekodowanie sygnałów poniżej progu szumów poprzez skupienie energii rozproszonego sygnału w jednym wąskim prążku podczas "de-chirpingu", teoretyczną czułość odbiornika w dBm wyznacza równanie @semtech_an1200[s. 13]:
 $ S_"RX" = -174 + 10log_10("BW") + "NF" + "SNR"_"limit"("SF") $
 
-\ Gdzie -174 dBm/Hz to gęstość widmowa szumów termicznych w temperaturze pokojowej, BW w hercach, NF to współczynnik szumów odbiornika (dla SX1276 jest to $"NF" = 6 "dB"$), $"SNR"_"limit"$ to minimalny stosunek sygnału do szumu otoczenia, który wymagany jest, aby poprawnie zdekodować sygnał. Oficjalne dane producenta (Semtech) mówią że próg ten wynosi $-7.5"dB"$ dla $"SF7"$, oraz $"-20 dB"$ dla $"SF12"$.
+\ Gdzie -174 dBm/Hz to gęstość widmowa szumów termicznych w temperaturze pokojowej, BW w hercach, NF to współczynnik szumów odbiornika (dla SX1276 jest to $"NF" = 6 "dB"$), $"SNR"_"limit"$ to minimalny stosunek sygnału do szumu otoczenia, który wymagany jest, aby poprawnie zdekodować sygnał. Oficjalne dane producenta (Semtech) mówią że próg ten wynosi $-7.5"dB"$ dla $"SF7"$, oraz $"-20 dB"$ dla $"SF12"$ @sx1276_datasheet[Tabela 13, s. 27].
 
-\ W przypadku standardowej transmisji z parametrami $"BW"= 125 "kHz" (10log_10(125000) approx 50.97 "dB")$ oraz $"NF"= 6 "dB"$ otrzymujemy podłogę szumową (noise floor) wynoszącą około $-117.03 "dBm"$. W rezultacie teoretyczna czułość wynosi około $-124.5 "dBm"$ dla SF7 oraz około $-137.0 "dBm"$ dla SF12. Jeśli dodatkowo zawężymy pasmo i wybierzemy najwyższą wartość SF12, układ SX1276 osiągnie maksymalną czułość katalogową  $-148 "dBm"$. Budżet łącza (Link Budget, jednostka dB) wyznacza równanie:
+\ W przypadku standardowej transmisji z parametrami $"BW"= 125 "kHz" (10log_10(125000) approx 50.97 "dB")$ oraz $"NF"= 6 "dB"$ otrzymujemy podłogę szumową (noise floor) wynoszącą około $-117.03 "dBm"$. W rezultacie teoretyczna czułość wynosi około $-124.5 "dBm"$ dla SF7 oraz około $-137.0 "dBm"$ dla SF12. Jeśli dodatkowo zawężymy pasmo i wybierzemy najwyższą wartość SF12, układ SX1276 osiągnie maksymalną czułość katalogową  $-148 "dBm"$ @sx1276_datasheet[s. 1]. Budżet łącza (Link Budget, jednostka dB) wyznacza równanie @semtech_an1200[s. 15--16]:
 $ "Link Budget" = P_"TX" + G_"TX" + G_"RX" - L_"loss" - S_"RX" $
 
 \ gdzie $P_"TX"$ to moc nadajnika, $G_"TX"$ oraz $G_"RX"$ to zyski anten odpowiednio nadajnika i odbiornika, $L_"loss"$ to suma strat kabli i złączy. Maksymalna moc SX1276 wynosi $+20 "dBm" (100 "mW")$ a czułość $-148 "dBm"$, więc teoretyczny budżet łącza sięga $168 "dB"$, a dla standardowych parametrów transmisji (+20 dBm, SF10, BW 125) wynosi $152 "dB"$  (przy zerowych stratach). W realnych warunkach jest on jednak niższy ze względu na regulacje prawne określające limity mocy nadawania.
 
 === Regulacje prawne w Europie: pasma EU433 i EU868
 
-Zasady użytkowania pasm ISM (_Industrial, Scientific, Medical_) i SRD (ang. _Short Range Devices_) w Europie reguluje norma ETSI EN 300 220 oraz zalecenie CEPT ERC/REC 70-03. W Polsce tymi normami zajmuje się Ministerstwo Cyfryzacji, poprzez "rozporządzenie Ministra Cyfryzacji w sprawie rozszerzonego zakresu urządzeń radiowych nadawczych lub nadawczo-odbiorczych, które mogą być używane bez pozwolenia radiowego. Na podstawie art. 145 ust. 4 ustawy z dnia 12 lipca 2024 r.".
+Zasady użytkowania pasm ISM (_Industrial, Scientific, Medical_) i SRD (ang. _Short Range Devices_) w Europie reguluje norma ETSI EN 300 220 @etsi_300_220_2 zalecenie CEPT ERC/REC 70-03. W Polsce tymi normami zajmuje się Ministerstwo Cyfryzacji, poprzez "rozporządzenie Ministra Cyfryzacji w sprawie rozszerzonego zakresu urządzeń radiowych nadawczych lub nadawczo-odbiorczych, które mogą być używane bez pozwolenia radiowego. Na podstawie art. 145 ust. 4 ustawy z dnia 12 lipca 2024 r." @bip_uke.
 
-\ Pasmo EU433 obejmuje zakres częstotliwości 433.050-434.790 MHz, a pasmo EU868 obejmuje 863-870 MHz, różnią się one maksymalną dopuszczalną mocą transmisji, oraz regułami czasu dostępu do widma (cykl pracy i techniki LBT+AFA, Listen Before Talk + Adaptive Frequency Agility, nazwane w normie "polite spectrum access")
+\ Pasmo EU433 obejmuje zakres częstotliwości 433.050-434.790 MHz, a pasmo EU868 obejmuje 863-870 MHz, różnią się one maksymalną dopuszczalną mocą transmisji, oraz regułami czasu dostępu do widma (cykl pracy i techniki LBT+AFA, Listen Before Talk + Adaptive Frequency Agility, nazwane w normie "polite spectrum access") @etsi_300_220_2[Table B.1, s. 21--22].
 
 #figure({
   set par(justify: false)
@@ -202,14 +202,14 @@ Zasady użytkowania pasm ISM (_Industrial, Scientific, Medical_) i SRD (ang. _Sh
 
 === LoRaWAN 
 
-LoRaWAN to otwarty (open-source) protokół operujący w warstwie MAC i warstwie sieciowej zarządzanym przez LoRa Alliance, działa on bezpośrednio nad fizyczną warstwą LoRa. Architektura LoRaWAN bazuje na topologii *gwiazdy gwiazd* (_stars-of-stars_), w której urządzenia końcowe (_End Devices_, ED) wysyłają pakiety tylko w komunikacji jednoskokowej (_single-hop_) za pomocą niesynchronizowanego protokołu ALOHA do bramek (_Gateways_, GW). Bramki pełnią tylko rolę mostów przekazujących pakiety LoRa poprzez łącze IP (poprzez protokół MQTT) do infrastruktury serwerowej. 
+LoRaWAN to otwarty (open-source) protokół operujący w warstwie MAC i warstwie sieciowej zarządzanym przez LoRa Alliance, działa on bezpośrednio nad fizyczną warstwą LoRa @lorawan_energy_tutorial[s. 2]. Architektura LoRaWAN bazuje na topologii *gwiazdy gwiazd* (_stars-of-stars_), w której urządzenia końcowe (_End Devices_, ED) wysyłają pakiety tylko w komunikacji jednoskokowej (_single-hop_) za pomocą niesynchronizowanego protokołu ALOHA do bramek (_Gateways_, GW). Bramki pełnią tylko rolę mostów przekazujących pakiety LoRa poprzez łącze IP (poprzez protokół MQTT) do infrastruktury serwerowej @lorawan_energy_tutorial[s. 2--3]. 
 
-\ Siecią LoRaWAN zarządzają trzy komponenty serwerowe:
+\ Siecią LoRaWAN zarządzają trzy komponenty serwerowe @lorawan_energy_tutorial[s. 4--5]:
 - *Network Server (LNS/NS)* odpowiedzialny jest za deduplikację tych samych pakietów które zostały odebrane przez różne bramki, jak i zarządzanie warstwą MAC.
 - *Join Server (JS)* zajmuje się przechowywaniem kluczy głównych (_NwkKey_, _AppKey_), oraz obsługuje procedurę uwierzytelniania i generuje klucze sesji.
 - *Application Server (AS)* zajmuje się odbieraniem i deszyfrowaniem danych aplikacji.
 
-\ Zastosowanie LoRaWAN w celu autonomicznej komunikacji _off-grid_ uniemożliwia między innymi:
+\ Zastosowanie LoRaWAN w celu autonomicznej komunikacji _off-grid_ uniemożliwia między innymi @lorawan_energy_tutorial:
 - Brak wieloskokowego routingu pomiędzy węzłami końcowymi, w efekcie utrata zasięgu do bramki sprawia że urządzenie zostaje sparaliżowane, nowsze rozszerzenia protokołu wprowadzają "węzły przekaźnikowe (_relay_)" ograniczone do maksymalnie 16 urządzeń na przekaźnik i wyłącznie przekazywanie pakietów w stronę bramki.
 - LoRaWAN wymaga kosztownych bramek i sprawnego, stałego łącza do serwerów LNS i JS, Join Server stanowi aktualnie pojedynczy punkt awarii (_single point of failure_) jeśli chodzi o uwierzytelnianie i bezpieczeństwo.
 - Klasy pracy protokołu (Klasa A, B, C) zostały zaprojektowane z myślą o wysyłaniu asymetrycznej telemetrii do chmury, energooszczędna Klasa A posiada krótkie okno odbiorcze wyłącznie po własnej transmisji, co uniemożliwia asynchroniczną wymianę wiadomości _peer-to-peer_, natomiast ciągłe nasłuchiwanie w Klasie C, jest bardzo energochłonne i zmniejsza czas życia urządzenia na baterii.
