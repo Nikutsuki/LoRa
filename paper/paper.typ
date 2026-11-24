@@ -100,8 +100,6 @@ Układ pracy jest podporządkowany założonemu zakresowi pracy w następujący 
 
 === Czym jest modulacja CSS?
 
-// AI NOTE sprawdzic czy te matematyczne na pewno tak sa, i bibliografie do tego
-
 LoRa (Long Range) to technologia transmisji radiowej opracowana przez firmę Semtech, polega ona na modulacji z rozproszonym widmem sygnałem świergotowym (CSS Chirp Spread Spectrum) @semtech_an1200. Główną zasadą działania tego mechanizmu jest wymiana przepustowości na zysk przetwarzania (processing gain) oraz odporność na szum otoczenia (background noise).
 
 \ Przesyłanie danych odbywa się poprzez tak zwane "chirpy" czyli przebieg którego częstotliwość zmienia się w czasie w sposób liniowy i ciągły, przechodząc przez całe pasmo kanału @semtech_an1200.
@@ -124,13 +122,13 @@ $ T_"sym"= 2^("SF")/"BW" $
 \ Standard LoRa przewiduje współczynnik SF w przedziale od SF7 do SF12 (układ SX1276 dodatkowo wspiera SF6),
 co przekłada się na od 128 do 4096 "chipów" na jeden symbol @sx1276_datasheet[s. 27]. Podniesienie SF o jeden stopień, powoduje podwojenie długości symbolu oraz czas jego obecności na kanale (Time on Air, ToA), maleje za to przepustowość w zamian za czułość odbiornika i odporność na szum. Natomiast szerokość pasma (BW) wynosi 125 kHz lub 250 kHz (moduł SX1276 obsługuje wartości od 7.8 kHz do 500 kHz). Poszerzenie pasma podwójnie, skraca o połowę czas trwania przebiegu, i zwiększa przepustowość, ale zwiększa ilość szumu w odbiorniku o $10log_10("BW"_2/"BW"_1)$ dB co pogarsza czułość @semtech_an1200.
 
-\ Korekcja błędów której używa LoRa to "FEC" (forward error correction), dostępne są 4 stopnie kodowania, od CR 4/5 do CR 4/8, wartość CR 4/5 zapewnia 20% nadmiarowości (1 bit korekcyjny na 4 bity przesyłanych danych),
-wartość CR 4/8 zapewnia 100% nadmiarowości co zapewnia naprawę błędów w środowiskach o silnych zakłóceniach. LoRa stosuje układ przeplotu (interleaver), który rozprasza bity wiadomości pomiędzy wieloma słowami kodowymi, w rezultacie nawet najlżejszy i najszybszy kod 4/5 zapewnia istotną odporność na błędy @semtech_an1200. Całkowity czas trwania pakietu (Time on Air) na podstawie wzoru ze specyfikacji Semtech wynosi @semtech_an1200[s. 10] @sx1276_datasheet[sekcja 4.1.1.6, s. 29--31]
+\ Korekcja błędów której używa LoRa to "FEC" (forward error correction), dostępne są 4 stopnie kodowania, od CR 4/5 do CR 4/8, wartość CR 4/5 zapewnia 25% nadmiarowości (1 bit korekcyjny na 4 bity przesyłanych danych),
+wartość CR 4/8 zapewnia 100% nadmiarowości co zapewnia naprawę błędów w środowiskach o silnych zakłóceniach. LoRa stosuje układ przeplotu (interleaver), który rozprasza bity wiadomości pomiędzy wieloma słowami kodowymi, w rezultacie nawet najlżejszy i najszybszy kod 4/5 zapewnia istotną odporność na błędy @semtech_an1200. Całkowity czas trwania pakietu (Time on Air) na podstawie wzoru ze specyfikacji Semtech wynosi @semtech_an1200[s. 10] @sx1276_datasheet[sekcja 4.1.1.6--7, s. 29--31]
 $
   T_"air" = (N_"pre" + 4.25) * T_"sym" + [8 + max(ceil((8 * "PL" - 4 * "SF" + 44)/(4("SF" - 2 * "DE")))*("CR"_"idx" + 4), 0)] * T_"sym"
 $
 
-\ gdzie $N_"pre"$ to liczba sygnałów preambuły, PL to ilość przesyłanych bajtów danych, $"CR"_"idx"$ to liczba $"idx" in {1,2,3,4}$ odpowiadająca odpowiednio dla CR 4/5-4/8, parametr DE jest równy 1 przy włączonej optymalizacji niskich przepustowości (stosuje się ją dla SF11 i SF12 przy BW 125 kHz). Według tego wzoru pakiet o długości 20 bajtów, z podstawowym kodowaniem CR 4/5, BW 125 kHz, oraz SF10, będzie przesyłany przez 0.370688 sekund, lub 370.688 milisekund.
+\ gdzie $N_"pre"$ to liczba sygnałów preambuły, PL to ilość przesyłanych bajtów danych, $"CR"_"idx"$ to liczba $"idx" in {1,2,3,4}$ odpowiadająca odpowiednio dla CR 4/5-4/8, parametr DE jest równy 1 przy włączonej optymalizacji niskich przepustowości (stosuje się ją dla SF11 i SF12 przy BW 125 kHz), stała 44 odpowiada włączonemu nagłówkowi ($"IH" = 0$) i włączonej sumie kontrolnej ładunku ($"CRC" = 1$). Według tego wzoru pakiet o długości 20 bajtów, z podstawowym kodowaniem CR 4/5, BW 125 kHz, oraz SF10, będzie przesyłany przez 0.370688 sekund, lub 370.688 milisekund.
 
 #figure({
     set par(justify: false)
@@ -196,27 +194,27 @@ Zasady użytkowania pasm ISM (_Industrial, Scientific, Medical_) i SRD (ang. _Sh
   caption: [Zestawienie parametrów i pasm EU433 oraz EU868 bazująca na normie ETSI EN 300 220-2 @etsi_300_220_2[Tabela B.1].]
 )
 
-\ W rezultacie normy te wymuszają wprowadzenie programowego ograniczenia mocy nadajnikowo-odbiorników (SX1276 jest w stanie nadawać z mocą +20 dBm) do +10 dBm w przypadku EU433, lub +14 dBm dla EU868, dużym problemem jest również limit _Duty Cycle_, który w przypadku 1% daje urządzeniu tylko 36 sekund aktywnej transmisji na godzinę. W przypadku standardowych parametrów transmisji z podstawowym kodowaniem CR 4/5, BW 125 kHz, oraz SF10, a więc ToA rzędu 371 milisekund (dla 20-stu bajtów danych) otrzymujemy możliwość wysłania pojedynczego pakietu około raz na 37.1 sekund ($approx 97$ pakietów na godzinę), w przypadku wykorzystania techniki "meshowania", która wymaga retransmitowania ruchu innych użytkowników, to właśnie _Duty Cycle_ stanowi największe wąskie gardło przepustowości.
+\ W rezultacie normy te wymuszają wprowadzenie programowego ograniczenia mocy nadajnikowo-odbiorników (SX1276 jest w stanie nadawać z mocą +20 dBm) do +10 dBm w przypadku EU433, lub +14 dBm dla EU868, dużym problemem jest również limit _Duty Cycle_, który w przypadku 1% daje urządzeniu tylko 36 sekund aktywnej transmisji na godzinę. W przypadku standardowych parametrów transmisji z podstawowym kodowaniem CR 4/5, BW 125 kHz, oraz SF10, a więc ToA rzędu 371 milisekund (dla 20 bajtów danych) otrzymujemy możliwość wysłania pojedynczego pakietu około raz na 37.1 sekund ($approx 97$ pakietów na godzinę), w przypadku wykorzystania techniki "meshowania", która wymaga retransmitowania ruchu innych użytkowników, to właśnie _Duty Cycle_ stanowi największe wąskie gardło przepustowości.
 
 == Przegląd istniejących rozwiązań łączności P2P
 
 === LoRaWAN 
 
-LoRaWAN to otwarty (open-source) protokół operujący w warstwie MAC i warstwie sieciowej zarządzanym przez LoRa Alliance, działa on bezpośrednio nad fizyczną warstwą LoRa @lorawan_energy_tutorial[s. 2]. Architektura LoRaWAN bazuje na topologii *gwiazdy gwiazd* (_stars-of-stars_), w której urządzenia końcowe (_End Devices_, ED) wysyłają pakiety tylko w komunikacji jednoskokowej (_single-hop_) za pomocą niesynchronizowanego protokołu ALOHA do bramek (_Gateways_, GW). Bramki pełnią tylko rolę mostów przekazujących pakiety LoRa poprzez łącze IP (poprzez protokół MQTT) do infrastruktury serwerowej @lorawan_energy_tutorial[s. 2--3]. 
+LoRaWAN to otwarty (open-source) protokół operujący w warstwie MAC i warstwie sieciowej zarządzanym przez LoRa Alliance, działa on bezpośrednio nad fizyczną warstwą LoRa @lorawan_energy_tutorial[s. 5]. Architektura LoRaWAN bazuje na topologii *gwiazdy gwiazd* (_stars-of-stars_), w której urządzenia końcowe (_End Devices_, ED) wysyłają pakiety tylko w komunikacji jednoskokowej (_single-hop_) za pomocą niesynchronizowanego protokołu ALOHA do bramek (_Gateways_, GW). Bramki pełnią tylko rolę mostów przekazujących pakiety LoRa poprzez łącze IP (poprzez protokół MQTT) do infrastruktury serwerowej @lorawan_energy_tutorial[s. 5]. 
 
-\ Siecią LoRaWAN zarządzają trzy komponenty serwerowe @lorawan_energy_tutorial[s. 4--5]:
+\ Siecią LoRaWAN zarządzają trzy komponenty serwerowe @lorawan_energy_tutorial[s. 10--11]:
 - *Network Server (LNS/NS)* odpowiedzialny jest za deduplikację tych samych pakietów które zostały odebrane przez różne bramki, jak i zarządzanie warstwą MAC.
 - *Join Server (JS)* zajmuje się przechowywaniem kluczy głównych (_NwkKey_, _AppKey_), oraz obsługuje procedurę uwierzytelniania i generuje klucze sesji.
 - *Application Server (AS)* zajmuje się odbieraniem i deszyfrowaniem danych aplikacji.
 
 \ Zastosowanie LoRaWAN w celu autonomicznej komunikacji _off-grid_ uniemożliwia między innymi @lorawan_energy_tutorial:
-- Brak wieloskokowego routingu pomiędzy węzłami końcowymi, w efekcie utrata zasięgu do bramki sprawia że urządzenie zostaje sparaliżowane, nowsze rozszerzenia protokołu wprowadzają "węzły przekaźnikowe (_relay_)" ograniczone do maksymalnie 16 urządzeń na przekaźnik i wyłącznie przekazywanie pakietów w stronę bramki.
+- Brak wieloskokowego routingu pomiędzy węzłami końcowymi, w efekcie utrata zasięgu do bramki sprawia że urządzenie zostaje sparaliżowane, nowsze rozszerzenia protokołu wprowadzają "węzły przekaźnikowe (_relay_)" ograniczone do maksymalnie 16 urządzeń na przekaźnik i wyłącznie przekazywanie pakietów w stronę bramki @lorawan_hybrid_2025[s. 3].
 - LoRaWAN wymaga kosztownych bramek i sprawnego, stałego łącza do serwerów LNS i JS, Join Server stanowi aktualnie pojedynczy punkt awarii (_single point of failure_) jeśli chodzi o uwierzytelnianie i bezpieczeństwo.
-- Klasy pracy protokołu (Klasa A, B, C) zostały zaprojektowane z myślą o wysyłaniu asymetrycznej telemetrii do chmury, energooszczędna Klasa A posiada krótkie okno odbiorcze wyłącznie po własnej transmisji, co uniemożliwia asynchroniczną wymianę wiadomości _peer-to-peer_, natomiast ciągłe nasłuchiwanie w Klasie C, jest bardzo energochłonne i zmniejsza czas życia urządzenia na baterii @lorawan_energy_tutorial[s. 5].
+- Klasy pracy protokołu (Klasa A, B, C) zostały zaprojektowane z myślą o wysyłaniu asymetrycznej telemetrii do chmury, energooszczędna Klasa A posiada krótkie okno odbiorcze wyłącznie po własnej transmisji, co uniemożliwia asynchroniczną wymianę wiadomości _peer-to-peer_, natomiast ciągłe nasłuchiwanie w Klasie C, jest bardzo energochłonne i zmniejsza czas życia urządzenia na baterii @lorawan_energy_tutorial[s. 10--11].
 
 === Meshtastic i routing mesh flooding
 
-Meshtastic jest otwartym projektem typu _mesh_, który wykorzystuje technologię LoRa w nielicencjonowanych pasmach ISM w celach w komunikacji tekstowej, udostępniania pozycji GPS, lub telemetrii bez użycia infrastruktury GSM @meshtastic_docs. Meshtastic nie korzysta z bramek lub serwerów centralnych, protokół implementuje algorytm *managed flooding*, polega on na kontrolowanym zalewaniu sieci z jednoczesnym tłumieniem retransmisji. Dzięki temu urządzenia nie muszą przechowywać tablic routingu ani topologii, każdy pakiet posiada parametr _hop limit_, który jest zmniejszany o jeden po każdym przekazaniu aż osiągnie wartość 0, urządzenia opóźniają transmisję pakietów, i rezygnują z niej całkowicie jeśli odbiorą że dany pakiet został retransmitowany.
+Meshtastic jest otwartym projektem typu _mesh_, który wykorzystuje technologię LoRa w nielicencjonowanych pasmach ISM w celu komunikacji tekstowej, udostępniania pozycji GPS, lub telemetrii bez użycia infrastruktury GSM @meshtastic_docs. Meshtastic nie korzysta z bramek lub serwerów centralnych, protokół implementuje algorytm *managed flooding*, polega on na kontrolowanym zalewaniu sieci z jednoczesnym tłumieniem retransmisji. Dzięki temu urządzenia nie muszą przechowywać tablic routingu ani topologii, każdy pakiet posiada parametr _hop limit_, który jest zmniejszany o jeden po każdym przekazaniu aż osiągnie wartość 0, urządzenia opóźniają transmisję pakietów, i rezygnują z niej całkowicie jeśli odbiorą że dany pakiet został retransmitowany.
 
 \ Największą zaletą Meshtastic jest gotowość do pracy od razu po włączeniu urządzenia, bez konfiguracji, oraz jedna z największych społeczności wśród otwartych sieci LoRa, co czyni go najlepszym i najłatwiej dostępnym kandydatem do szybkiego wdrożenia w sytuacji kryzysowej, w obszarze pozbawionym tradycyjnej infrastruktury telekomunikacyjnej. Nie jest on jednak pozbawiony problemów, najważniejsze z nich to:
 - Ograniczona skalowalność i zatory, LoRa posiada przepustowość rzędu kilkuset bitów na sekundę, przez to że kanał jest współdzielony w przypadku większych lub gęstych sieci mechanizm _floodingu_ powoduje kolizje, gubienie pakietów (_packet loss_) oraz opóźnienia @croce_2018[s. 1--3].
@@ -233,7 +231,7 @@ Meshtastic jest otwartym projektem typu _mesh_, który wykorzystuje technologię
 
 \ Należy pamiętać że autor sam ostrzega że stos jest młody, i nie przeszedł jeszcze żadnego zewnętrznego audytu bezpieczeństwa.
 
-\ *Disaster Radio* jest projektem który skupia się na budowie tanich, zasilanych solarnie, węzłów łączności kryzysowej, głównie na mikrokontrolerach ESP32 z modułem LoRa @disaster_radio_wiki. Największą cechą wyróżniającą projekt jest możliwość korzystania z aplikacji bez instalacji klienta, urządzenie rozgłasza sieć Wi-Fi w której pod adresem 192.168.4.1 udostępnia interfejs poprzez serwer HTTP oraz WebSockets (alternatywą jest aplikacja Android i łączność poprzez Bluetooth). Projekt korzysta z autorskiego protokołu na bazie LoRaLayer2, każdy węzeł posiada swój unikalny 4 bajtowy adres, oraz dla każdego odebranego pakietu podejmuję decyzję o retransmisji. Projekt pozwala również na zapisywanie historii wiadomości na karcie SD @disaster_radio_wiki. 
+\ *Disaster Radio* jest projektem który skupia się na budowie tanich, zasilanych solarnie, węzłów łączności kryzysowej, głównie na mikrokontrolerach ESP32 z modułem LoRa @disaster_radio_wiki. Największą cechą wyróżniającą projekt jest możliwość korzystania z aplikacji bez instalacji klienta, urządzenie rozgłasza sieć Wi-Fi w której pod adresem 192.168.4.1 udostępnia interfejs poprzez serwer HTTP oraz WebSockets (alternatywą jest aplikacja Android i łączność poprzez Bluetooth). Projekt korzysta z autorskiego protokołu na bazie LoRaLayer2, każdy węzeł posiada swój unikalny 4 bajtowy adres, oraz dla każdego odebranego pakietu podejmuje decyzję o retransmisji. Projekt pozwala również na zapisywanie historii wiadomości na karcie SD @disaster_radio_wiki. 
 
 === Porównanie istniejących technologii
 
@@ -247,7 +245,7 @@ Meshtastic jest otwartym projektem typu _mesh_, który wykorzystuje technologię
     [LoRaWAN], [*Gwiazda gwiazd*, wymagana centralna infrastruktura], [Tylko LoRa, AES-128], [Brak możliwości pracy off-grid],
     [Meshtastic], [*Kratowa (_mesh_)* brak infrastruktury centralnej], [Tylko LoRa, Szyfrowanie kanałowe], [Kolizje oraz wysoki pobór mocy],
     [Disaster Radio], [*Kratowa (_mesh_)* brak infrastruktury centralnej], [LoRa + Wi-Fi / BLE, brak szyfrowania E2EE], [Ograniczona funkcjonalność],
-    [Reticulum], [*Multi-hop*, wydzielone węzły transportowe, brak centralnej infrastruktury], [LoRa (RNode), Ethernet, Wi-Fi, I2P, KISS, TCP/UDP, E2EE (X25519, Ed25519)], [Brak zewnętrznego audytu bezpieczeństwa]
+    [Reticulum], [*Multi-hop*, wydzielone węzły transportowe, brak centralnej infrastruktury], [LoRa (RNode), Ethernet, Wi-Fi, I2P, KISS, TCP/UDP, E2EE (X25519, Ed25519, AES-256-CBC + HMAC-SHA256)], [Brak zewnętrznego audytu bezpieczeństwa]
   )
   },
   caption: [Porównanie przykładowych systemów komunikacji bazujących na technologii LoRa]
@@ -290,7 +288,7 @@ W systemach wbudowanych oraz sieciach LoRa klasyczna kryptografia RSA została z
   table(
     columns: (auto, auto, auto, auto),
     table.header([*Implementacja*], [*Architektura*], [*Cykle CPU*], [*Charakterystyka pomiaru*]),
-    [*X25519* (Dülli inni, 2015 @dull_2015)], [ARM Cortex-M0], [3 589 850 cykli], [Asembler ARMv6-M, około 8 KiB kodu],
+    [*X25519* (Düll i inni, 2015 @dull_2015)], [ARM Cortex-M0], [3 589 850 cykli], [Asembler ARMv6-M, około 8 KiB kodu],
     [*X25519* (Pornin, x25519-cm0 @pornin_x25519)], [ARM Cortex-M0 / M0+], [3 229 950 cykli], [Pełna zgodność z RFC 7748, i odporność na _side channel attacks_],
     [*Ed25519 podpis*], [ARM Cortex-M0], [$approx$3 000 000 cykli], [Wersja bez tablic prekomputowanych],
     [*Ed25519 weryfikacja*], [ARM Cortex-M0], [$approx$5 700 000 cykli], [Wersja zoptymalizowana pod rozmiar kodu]
@@ -307,13 +305,13 @@ Nowoczesne protokoły takie jak TLS 1.3, WireGuard, QUIC, bazują integralność
 
 \ Drugim powodem dlaczego *ChaCha20-Poly1305* jest lepszym wyborem na mikrokontrolerach jest dużo niższy koszt wykonania algorytmu. Funkcja sprawdzająca integralność w AES-GCM (GHASH) wymaga operacji w ciele $"GF"(2^128)$, proste mikrokontrolery nie posiadają akceleracji sprzętowej tych operacji, więc muszą je emulować co jest od dwóch do czterech razy wolniejsze niż szyfrowanie, i znacząco spowalnia układ, nawet w przypadku w którym mikrokontroler posiada akcelerację AES @aes_gcm_iot_2019.
 
-\ Algorytm *Poly1305* bazuje na zwykłej arytmetyce liczb całkowitych (modulo $2^130 - 5$), są to podstawowe instrukcje w procesorach 32-bitowych. Dzięki temu na procesorach ARM Cortex-M0 bez akceleracji sprzętowej, *ChaCha20-Poly1305* działa do 3 razy szybciej niż AES-GCM. Z tego powodu standard TLS 1.3 zaleca *Poly1305* jako preferowany algorytm dla urządzeń bez sprzętowej akceleracji AES @palii_chacha20_2026.
+\ Algorytm *Poly1305* bazuje na zwykłej arytmetyce liczb całkowitych (modulo $2^130 - 5$), są to podstawowe instrukcje w procesorach 32-bitowych. Dzięki temu na procesorach ARM bez akceleracji sprzętowej, *ChaCha20-Poly1305* działa do 3 razy szybciej niż AES-GCM. Z tego powodu standard TLS 1.3 zaleca *Poly1305* jako preferowany algorytm dla urządzeń bez sprzętowej akceleracji AES @palii_chacha20_2026.
 
-\ Należy pamiętać że żaden z tych algorytmów nie jest odporny na użycie tego samego wektora _nonce_ dwa razy (w przypadku losowej generacji wektora zalecane jest użycie *XChaCha20-Poly1305* gdzie _nonce_ ma rozmiar 192 bitów ze względu na to że z 96-bitowy nonce algorytmu ChaCha20-Poly1305 posiada ryzyko kolizji ze względu na paradoks urodzin, wymagane jest tylko około $2^32-2^48$) @palii_chacha20_2026.
+\ Należy pamiętać że żaden z tych algorytmów nie jest odporny na użycie tego samego wektora _nonce_ dwa razy, w przypadku losowej generacji wektora zalecane jest użycie *XChaCha20-Poly1305* gdzie _nonce_ ma rozmiar 192 bitów ze względu na to że z 96-bitowy nonce algorytmu ChaCha20-Poly1305 posiada ryzyko kolizji ze względu na paradoks urodzin, wymagane jest tylko około $2^32"-"2^48$ wiadomości z losowo generowanym wektorem, aby wystąpiła kolizja @palii_chacha20_2026.
 
 === Problem wymiany kluczy bez serwera centralnego: TOFU i podpisy cyfrowe
 
-Nawet bezbłędna implementacja *X25519* oraz *ChaCha20-Poly1305* nie chroni przed atakiem _Man-in-the-middle_ (MITM), prze brak możliwości powiązania klucza publicznego z tożsamością. Rozproszone sieci _off-grid_ z definicji nie mają możliwości użycia centralnego serwera uwierzytelniającego.
+Nawet bezbłędna implementacja *X25519* oraz *ChaCha20-Poly1305* nie chroni przed atakiem _Man-in-the-middle_ (MITM), przez brak możliwości powiązania klucza publicznego z tożsamością. Rozproszone sieci _off-grid_ z definicji nie mają możliwości użycia centralnego serwera uwierzytelniającego.
 
 \ W rezultacie w niezależnych sieciach _off-grid_ stosuje się model *Trust On First Use (TOFU)* obecny między innymi w protokole SSH lub komunikatorach takich jak Signal. Model TOFU polega na zapisaniu klucza publicznego rozmówcy podczas pierwszego nawiązania połączenia, i od tego momentu domyślnie ufa mu, następnie przy każdej kolejnej interakcji, klucz jest sprawdzany, i w przypadku gdy się nie zgadza, użytkownik otrzymuje komunikat o potencjalnych ataku MITM. Pomimo tego że model TOFU zapewnia wysoką użyteczność w sieciach zdecentralizowanych, istnieje w nim jedna krytyczna podatność, czyli podmiana klucza w trakcie pierwszej wymiany @sok_secure_messaging_2015.
 
