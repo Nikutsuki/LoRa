@@ -24,6 +24,7 @@ public:
                              const uint8_t seed[32],
                              bool developmentIdentity);
 
+    // Nonce accepts sequence so that we never generate the same nonce vector
     static void makeNonce(uint8_t nonce[NonceSize],
                           const uint8_t senderDeviceId[DeviceIdSize],
                           const uint8_t recipientDeviceId[DeviceIdSize],

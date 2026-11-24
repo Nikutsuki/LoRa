@@ -256,7 +256,7 @@ void HardwareTestApp::preparePage()
 void HardwareTestApp::prepareCommon()
 {
     // Header mirrors the Go UI's top bar: product name, nickname and page.
-    std::snprintf(headerText_, sizeof(headerText_), "MESSENGER  |  User: %s",
+    std::snprintf(headerText_, sizeof(headerText_), "User: %s",
                   contacts_.identity().nickname);
     std::snprintf(headerRight_, sizeof(headerRight_), "433 MHz");
     headerBar_.setTitle(headerText_);
