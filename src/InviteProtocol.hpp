@@ -98,7 +98,7 @@ namespace crypto_chat
         static bool isForDevice(const DecodedPacket &packet, const uint8_t deviceId[DeviceIdSize]);
 
     private:
-        static constexpr uint32_t Magic = 0x3143484c; // "LHC1"
+        static constexpr uint32_t Magic = 0x3148314c; // "LCL1"
         static constexpr uint8_t Version = 1;
 
         static void writeHeader(const PacketHeader &header, uint8_t *out);

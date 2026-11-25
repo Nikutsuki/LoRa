@@ -30,29 +30,12 @@ public:
     int8_t lastSnr() const { return lastSnr_; }
 
 private:
-    static constexpr uint32_t Frequency = 433000000;
+    static constexpr uint32_t Frequency = 433920000;
 
-    /*!
-     * Transmit power in dBm.
-     *
-     * Capped well below the 22 dBm maximum because bench setups park the boards
-     * centimetres apart, where full power saturates the receiver front end and
-     * shows up as CRC failures on received packets.
-     */
-    static constexpr int8_t TxOutputPower = 14;
+    
+    // Transmit power in dBm.
+    static constexpr int8_t TxOutputPower = 10;
 
-    /*!
-     * LoRa bandwidth, as an index into Radio's Bandwidths table
-     * { LORA_BW_125, LORA_BW_250, LORA_BW_500 }.
-     *
-     * So 0 = 125 kHz, 1 = 250 kHz, 2 = 500 kHz. Prefer the named constants below
-     * over raw numbers: 2 does not mean 125 kHz.
-     *
-     * The previous value was 2 (500 kHz), the widest and least sensitive option:
-     * it roughly halves the link budget versus 125 kHz because the receiver
-     * integrates over a wider noise band. Combined with boards sitting
-     * centimetres apart that produced CRC failures on received packets.
-     */
     static constexpr uint32_t BandwidthIndex125kHz = 0;
     static constexpr uint32_t Bandwidth = BandwidthIndex125kHz;
 

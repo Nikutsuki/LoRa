@@ -327,9 +327,83 @@ Nawet bezbłędna implementacja *X25519* oraz *ChaCha20-Poly1305* nie chroni prz
 
 == Kryteria doboru stosu technologicznego
 
+Najważniejszą częścią doboru stosu technologicznego w systemach wbudowanych jest wzięcie pod uwagę ograniczeń które ograniczają projekt. W przypadku transmiji LoRa najważniejszym ograniczeniem jest rozmiar pojedynczego pakietu, który wynosi 255 bajtów, oraz regulacje prawne, które mocno ograniczają czas nadawania i limity mocy. Sprawia to że każdy bajt podczas transmisji jest jeszcze bardziej cenny niż w innych typach transmisji, dużym wyzwaniem jest więc uzyskanie silnej kryptografii względem zużycia baterii i czasu trwania transmisji (_Time on Air_). W projekcie wykorzystano moduł SX1262 który posiada konfigurowalne parametry:
+- Bandwidth w zakresie 7.81 - 500 kHz
+- Spreading Factor w zakresie 5 - 12
+- Kodowanie w zakresie 1 - 4
+- Częstotliwość w zakresie 410 - 510 MHz
+- Moc w zakresie -9 dBm - +22 dBm 
+
+\ Parametry zostały wybrane tak aby osiągnąć złoty środek, BW = 125 kHz aby zachować czułość odbiornika na tanim układzie, SF = 9 w celu przyspieszenia transmisji, kodowanie 4/5 dla podstawowej korekcji błędów, standardową preambułę 8 pakietów oraz moc 10 dBm ze względu na normy europejskie. 
+
+\ Ze względu na brak sprzętowej akceleracji AES oraz ograniczoną pamięć SRAM, w projekcie zrezygnowano z bibliotek takich jak mbedTLS czy wolfSSL na rzecz lżejszej biblioteki *Monocypher*, napisana jest ona w standardzie C99. Dzięki temu wydajność kryptografii na rdzeniu ARM Cortex-M0+ jest dużo lepsza. Główne zalety *Monocypher* to:
+- Odporność na _side-channel attacks_, wszystkie krytyczne operacje kryptograficzne zaimplementowane są w sposób stałoczasowy (_constant-time_), bez rozgałęzień programu, i indeksowania tablic na podstawie sekretów, co chroni program przed analizą czasową (_timing attacks_).
+- Biblioteka implementuje wydajne algorytmy na architekturze 32-bitowej, algorytmy z rodziny ARX (_Addition-Rotation-XOR_) takie jak ChaCha20 oraz BLAKE2b, bazują one na prostych 32-bitowych operacjach arytmetyczno-logicznych, co zapewnia nieporównywalnie lepszą wydajność na procesorach Cortex-M0+ w stosunku do programowych implementacji AES.
+- Brak dynamicznej alokacji pamięci (malloc oraz free) i operuje na buforach przekazanych przez program główny, które są alokowane statycznie lub na stosie. Całkowicie eliminuje to zjawisko wycieków pamięci przy długotrwałej pracy urządzenia.
+- Łatwość integracji w projekcie zapewniana jest przez sposób w jaki biblioteka jest rozpowszechniana, czyli para dwóch plików źródłowych (monocypher.c i monocypher.h) bez innych zależności co zmniejsza rozmiar końcowego programu oraz upraszcza jego kompilację.
+
 == Zastosowane algorytmy kryptograficzne
 
+=== Generowanie kluczy oraz tożsamości urządzenia
+
+#figure(
+  image("images/diagram1.svg"),
+  caption: [Schemat wyprowadzenia kluczy urządzenia (Ed25519 i X25519) oraz odcisku tożsamości (BLAKE2b)]
+)
+
+#figure(
+  image("images/diagram2.svg"),
+  caption: [Schemat wyprowadzenia symetrycznego klucza sesyjnego]
+)
+
+#import "@preview/bytefield:0.0.9": *
+
+#figure(
+  bytefield(
+    bpr: 32,
+    group(right, 12)[AAD (75 B) -- uwierzytelniane],
+    bytes(8, fill: luma(235))[Header `LCL1` (27 B)],
+    bytes(8, fill: luma(235))[Nick (16 B)],
+    bytes(8, fill: luma(235))[Fingerprint (8 B)],
+
+    group(left, 6)[Wektor Nonce (24 B)],
+    bytes(8, fill: rgb("#fff2cc"))[`SenderID` (8 B)],
+    bytes(8, fill: rgb("#fff2cc"))[`RecipientID` (8 B)],
+    bytes(4, fill: rgb("#ffe699"))[`Sequence` (4 B)],
+    bytes(4, fill: luma(225))[`0x00000000`(4B)],
+    
+    group(right, 4)[AEAD],
+    bytes(8, fill: rgb("#e8f0fe"))[MAC Poly1305 (16 B)],
+    bytes(8, fill: rgb("#d5e8d4"))[Data XChaCha20 (1-96 B)],
+  ),
+  caption: [meow]
+)
+
+// AI NOTE
+
+  MAC i AAD chronią przed 4 konkretnymi zagrożeniami:
+
+  1. Manipulacja treścią (bit-flipping):
+  Sam szyfr strumieniowy (XChaCha20) bez MAC nie wykrywa zmian — atakujący mógłby odwrócić wybrane bity w szyfrogramie (np. zamienić znane fragmenty tekstu), a odbiorca by to odszyfrował. MAC odrzuca pakiet
+  przy zmianie choćby jednego bitu.
+  2. Fałszowanie wiadomości (spoofing):
+  Bez znajomości klucza sesji nikt nie potrafi wyliczyć poprawnego 16-bajtowego tagu Poly1305, więc nie podszyje się pod nadawcę.
+  3. Podmiana jawnych metadanych (to robi AAD):
+  Ponieważ MAC obejmuje również 75 B jawnego AAD, atakujący nie może w locie zmienić np. SenderID, RecipientID, Sequence, Nickname ani Fingerprint w nagłówku ramki — każda taka zmiana unieważnia tag MAC.
+  4. Niewykryte błędy transmisji radiowej:
+  Gdyby w silnie zaszumionym kanale LoRa sprzętowe CRC-16 przepuściło uszkodzony pakiet, 128-bitowy MAC gwarantuje odrzucenie uszkodzonych danych.
+
+  (Warto wiedzieć na obronę: sam MAC + AAD nie chroni przed atakiem powtórzeniowym (Replay Attack) — czyli nagraniem poprawnego pakietu i wysłaniem go drugi raz — do tego służy sprawdzanie monotoniczności
+  licznika sequence po stronie odbiorcy).
+
+// AI NOTE
+
 == Protokół parowania urządzeń
+
+#figure(
+  image("images/diagram3.svg"),
+  caption: [Schemat protokołu parowanai urządzeń]
+)
 
 == Protokół wymiany wiadomości oraz ACK
 
@@ -343,6 +417,14 @@ Nawet bezbłędna implementacja *X25519* oraz *ChaCha20-Poly1305* nie chroni prz
 2. Platforma sprzętowa: RP2040 vs ESP32 vs STM32:
   • Dlaczego RP2040: 2 rdzenie Cortex-M0+ (133 MHz), elastyczne PIO, brak wbudowanego prądożernego radia Wi-Fi/BT (niższy pobór w stanie czuwania niż ciągle aktywny ESP32), dojrzałe Pico SDK w C++,
   niski koszt.
+
+  Natomiast w kolejnych sekcjach zdecydowanie warto dodać jeszcze te 5 diagramów, bo każda z nich ma inną dynamikę:
+  
+  2. 4.4 (Wiadomości i ACK): Diagram sekwencji UML — wysłanie EncryptedMessage, oczekiwanie z timeoutem, MessageAck vs Failed.
+  3. 4.5 (Transfer plików): Diagram sekwencji UML (4 aktorów) — Host A ↔ RP2040 A ↔ RP2040 B ↔ Host B (FileExchangeStart z fileKey w AEAD + pętla FileExchangeData w ChaCha20-IETF + TxDone/FileExchangeAck).
+  4. 5.1 (Architektura sprzętowa): Schemat blokowy połączeń — RP2040 ↔ SX1262 (SPI), ILI9341 (SPI), CardKB (I2C), PC (USB CDC / UART).
+  5. 5.3 (Maszyny stanów): Diagram stanów (stateDiagram-v2) — główne widoki UI (Chat, Contacts, Invite, Identity) oraz stany radia/transferu (Idle / AwaitingAck / SendingFile / ReceivingFile).
+  Łącznie wyjdzie Ci 8 konkretnych diagramów na całą pracę — każdy inny, zero powtórek i dokładnie w miejscach, o które pyta komisja na obronie.
 // AI NOTE!!!!!!!!
 
 == Środowisko programistyczne

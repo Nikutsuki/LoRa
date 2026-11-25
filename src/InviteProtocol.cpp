@@ -148,12 +148,12 @@ namespace crypto_chat
         payload += MacSize;
         uint8_t *cipherText = payload;
 
-        size_t adLength = HeaderSize + NicknameSize + FingerprintSize + NonceSize;
-        uint8_t ad[HeaderSize + NicknameSize + FingerprintSize + NonceSize];
-        std::memcpy(ad, out, HeaderSize);
-        std::memcpy(ad + HeaderSize, out + HeaderSize, NicknameSize + FingerprintSize + NonceSize);
+        size_t aadLength = HeaderSize + NicknameSize + FingerprintSize + NonceSize;
+        uint8_t aad[HeaderSize + NicknameSize + FingerprintSize + NonceSize];
+        std::memcpy(aad, out, HeaderSize);
+        std::memcpy(aad + HeaderSize, out + HeaderSize, NicknameSize + FingerprintSize + NonceSize);
 
-        if (!CryptoBox::encryptForContact(identity, contact, nonce, ad, adLength,
+        if (!CryptoBox::encryptForContact(identity, contact, nonce, aad, aadLength,
                                           reinterpret_cast<const uint8_t *>(message), plainLength,
                                           cipherText, mac))
         {
