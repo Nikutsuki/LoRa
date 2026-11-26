@@ -458,8 +458,8 @@ void UiController::rebuildHistoryRows(const RadioSession &radio)
             }
         }
 
-        char segs[4][40]{};
-        const size_t segCount = wrapText(fullText, segs, 4, WrapColumnWidth);
+        char segs[MaxWrappedLines][40]{};
+        const size_t segCount = wrapText(fullText, segs, MaxWrappedLines, WrapColumnWidth);
 
         // Fill visual lines from bottom to top so the newest message stays anchored at the bottom.
         for (int s = static_cast<int>(segCount) - 1; s >= 0 && currentVisualRow >= 0; s--) {
@@ -554,15 +554,6 @@ bool UiController::handleKeyEvent(ui::KeyEvent event,
 
     uiPage_.handle(event);
     invalidate();
-
-    if (page_ == Page::Contacts && event.key == ui::Key::Up) {
-        outCommand.type = UiCommand::Type::PrevContact;
-        return true;
-    }
-    if (page_ == Page::Contacts && event.key == ui::Key::Down) {
-        outCommand.type = UiCommand::Type::NextContact;
-        return true;
-    }
     return false;
 }
 
@@ -615,46 +606,13 @@ bool UiController::activateFocused(const RadioSession &radio, UiCommand &outComm
         }
     }
 
-    if (page_ == Page::Identity && focused == &inputBox_) {
-        const auto type = (inputLength_ == 64) ? UiCommand::Type::ProvisionSeed
-                                               : UiCommand::Type::SetNickname;
-        return emitTextCommand(type, input_, true, outCommand);
-    }
-
     if (page_ == Page::Chat && (focused == &inputBox_ || focused == &sendButton_)) {
         if (inputLength_ == 0 || radio.radio().isBusy()) {
             return false;
         }
-        if (input_[0] == '/') {
-            const bool emitted = parseSlashCommand(outCommand);
-            clearInput();
-            return emitted;
-        }
         return emitTextCommand(UiCommand::Type::SendText, input_, true, outCommand);
     }
 
-    return false;
-}
-
-bool UiController::parseSlashCommand(UiCommand &outCommand)
-{
-    if (std::strcmp(input_, "/i") == 0) {
-        return emitTextCommand(UiCommand::Type::SendInvite, "", false, outCommand);
-    }
-    if (std::strcmp(input_, "/a") == 0) {
-        return emitTextCommand(UiCommand::Type::AcceptInvite, "", false, outCommand);
-    }
-    if (std::strcmp(input_, "/c") == 0) {
-        outCommand.type = UiCommand::Type::NextContact;
-        return true;
-    }
-    if (std::strncmp(input_, "/n ", 3) == 0) {
-        return emitTextCommand(UiCommand::Type::SetNickname, input_ + 3, false, outCommand);
-    }
-    if (std::strncmp(input_, "/seed ", 6) == 0) {
-        return emitTextCommand(UiCommand::Type::ProvisionSeed, input_ + 6, false, outCommand);
-    }
-    setNotice("Unknown command", ui::Tone::Danger);
     return false;
 }
 

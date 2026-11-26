@@ -10,6 +10,11 @@
 
 namespace {
 
+constexpr uint8_t AckOk = 0;
+constexpr uint8_t AckNoContact = 1;
+constexpr uint8_t AckEncodeError = 2;
+constexpr uint8_t AckTxFailed = 3;
+
 struct __attribute__((packed)) FileKeySeed {
     uint8_t deviceId[lora::DeviceIdSize];
     uint64_t timestamp;
@@ -78,7 +83,7 @@ bool FileTransfer::onTxDone()
         return false;
     }
     awaitingTxAck_ = false;
-    linkSession_.sendExchangeAck(pendingAckChunk_, 0);
+    linkSession_.sendExchangeAck(pendingAckChunk_, AckOk);
     return true;
 }
 
@@ -88,7 +93,7 @@ bool FileTransfer::onTxTimeout()
         return false;
     }
     awaitingTxAck_ = false;
-    linkSession_.sendExchangeAck(pendingAckChunk_, 3);
+    linkSession_.sendExchangeAck(pendingAckChunk_, AckTxFailed);
     notice_.emit("LoRa TX timeout", ui::Tone::Danger);
     return true;
 }
@@ -137,7 +142,7 @@ void FileTransfer::startOutgoing(const proto::FileExchangeStartMessage &msg)
 {
     const lora::Contact *contact = radioSession_.selectedContact();
     if (contact == nullptr) {
-        linkSession_.sendExchangeAck(0, 1);
+        linkSession_.sendExchangeAck(0, AckNoContact);
         notice_.emit("No contact selected", ui::Tone::Danger);
         return;
     }
@@ -161,12 +166,12 @@ void FileTransfer::startOutgoing(const proto::FileExchangeStartMessage &msg)
     lora::PacketBuffer packet;
     const lora::PeerSession peer{radioSession_.identity(), *contact};
     if (!lora::Packet::encodeFileStart(peer, seq, info, packet)) {
-        linkSession_.sendExchangeAck(0, 2);
+        linkSession_.sendExchangeAck(0, AckEncodeError);
         return;
     }
 
     if (!radioSession_.radio().sendPacket(packet)) {
-        linkSession_.sendExchangeAck(0, 3);
+        linkSession_.sendExchangeAck(0, AckTxFailed);
         return;
     }
 
@@ -181,13 +186,13 @@ void FileTransfer::sendChunk(const proto::FileExchangeDataMessage &msg)
 {
     const lora::Contact *contact = radioSession_.selectedContact();
     if (contact == nullptr) {
-        linkSession_.sendExchangeAck(msg.chunkIndex, 1);
+        linkSession_.sendExchangeAck(msg.chunkIndex, AckNoContact);
         return;
     }
 
     uint8_t encryptedChunk[lora::MaxPacketSize];
     if (msg.length > sizeof(encryptedChunk)) {
-        linkSession_.sendExchangeAck(msg.chunkIndex, 2);
+        linkSession_.sendExchangeAck(msg.chunkIndex, AckEncodeError);
         return;
     }
 
@@ -199,12 +204,12 @@ void FileTransfer::sendChunk(const proto::FileExchangeDataMessage &msg)
         radioSession_.identity(), *contact, radioSession_.nextSequence());
     const lora::FileChunkView chunk{msg.chunkIndex, encryptedChunk, msg.length};
     if (!lora::Packet::encodeFileData(route, chunk, packet)) {
-        linkSession_.sendExchangeAck(msg.chunkIndex, 2);
+        linkSession_.sendExchangeAck(msg.chunkIndex, AckEncodeError);
         return;
     }
 
     if (!radioSession_.radio().sendPacket(packet)) {
-        linkSession_.sendExchangeAck(msg.chunkIndex, 3);
+        linkSession_.sendExchangeAck(msg.chunkIndex, AckTxFailed);
         return;
     }
 

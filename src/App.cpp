@@ -19,6 +19,9 @@ constexpr uint CardKbSda = 26;
 constexpr uint CardKbScl = 27;
 constexpr uint CardKbBaud = 100000;
 
+constexpr uint32_t BootDelayMs = 1000;
+constexpr uint32_t LoopIntervalMs = 20;
+
 } // namespace
 
 App::App()
@@ -35,7 +38,7 @@ App::App()
 void App::run()
 {
     stdio_init_all();
-    sleep_ms(1000);
+    sleep_ms(BootDelayMs);
 
     display_.init();
     hostLink_.init();
@@ -61,7 +64,7 @@ void App::run()
 
         pollUiCommands();
         ui_.render(radio_, fileTransfer_);
-        sleep_ms(20);
+        sleep_ms(LoopIntervalMs);
     }
 }
 
@@ -106,11 +109,6 @@ void App::dispatchCommand(const UiCommand &cmd)
         break;
     case UiCommand::Type::NextContact:
         radio_.selectNextContact();
-        break;
-    case UiCommand::Type::PrevContact:
-        if (radio_.selectedContactIndex() > 0) {
-            radio_.selectContact(radio_.selectedContactIndex() - 1);
-        }
         break;
     case UiCommand::Type::SetNickname:
         radio_.setNickname(cmd.text);

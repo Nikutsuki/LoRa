@@ -125,7 +125,7 @@ void RadioSession::sendTextMessage(const char *text)
     history_.at(messageIndex).status = lora::ChatEntry::Status::Sending;
 
     awaitingAck_ = true;
-    ackDeadline_ = make_timeout_time_ms(1500);
+    ackDeadline_ = make_timeout_time_ms(AckTimeoutMs);
     awaitingAckIndex_ = messageIndex;
     awaitingAckSeq_ = sequence_ - 1;
     dirty_ = true;
@@ -236,7 +236,7 @@ void RadioSession::setNickname(const char *nickname)
 
 void RadioSession::provisionSeed(const char *hexSeed)
 {
-    uint8_t seed[32];
+    uint8_t seed[lora::FileKeySize];
     if (!parseHexSeed(hexSeed, seed)) {
         notice_.emit("Seed must be 64 hex chars", ui::Tone::Danger);
         return;
@@ -389,9 +389,9 @@ void RadioSession::sendAck(const uint8_t recipientDeviceId[lora::DeviceIdSize], 
     }
 }
 
-bool RadioSession::parseHexSeed(const char *hexSeed, uint8_t out[32]) const
+bool RadioSession::parseHexSeed(const char *hexSeed, uint8_t out[lora::FileKeySize]) const
 {
-    if (hexSeed == nullptr || std::strlen(hexSeed) != 64) {
+    if (hexSeed == nullptr || std::strlen(hexSeed) != lora::HexSeedSize) {
         return false;
     }
 
@@ -402,7 +402,7 @@ bool RadioSession::parseHexSeed(const char *hexSeed, uint8_t out[32]) const
         return -1;
     };
 
-    for (size_t i = 0; i < 32; i++) {
+    for (size_t i = 0; i < lora::FileKeySize; i++) {
         const int high = nibble(hexSeed[i * 2]);
         const int low = nibble(hexSeed[i * 2 + 1]);
         if (high < 0 || low < 0) {

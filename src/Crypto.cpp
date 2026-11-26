@@ -53,13 +53,19 @@ struct __attribute__((packed)) SharedKeyMaterial {
     uint8_t secondPublicKey[PublicKeySize];
 };
 
+constexpr size_t ChunkNonceSize = 12;
+constexpr size_t Argon2WorkWords = 4096;
+constexpr uint32_t Argon2Blocks = 16;
+constexpr uint32_t Argon2Passes = 2;
+constexpr uint32_t Argon2Lanes = 1;
+
 struct __attribute__((packed)) ChunkNonce {
     uint32_t chunkIndex;
-    uint8_t zero[8];
+    uint8_t zero[ChunkNonceSize - sizeof(uint32_t)];
 };
 
 static_assert(sizeof(NonceLayout) == NonceSize, "NonceLayout size mismatch");
-static_assert(sizeof(ChunkNonce) == 12, "ChunkNonce size mismatch");
+static_assert(sizeof(ChunkNonce) == ChunkNonceSize, "ChunkNonce size mismatch");
 
 InviteSigMaterial makeInviteMaterial(PacketType type,
                                        const uint8_t deviceId[DeviceIdSize],
@@ -90,12 +96,12 @@ void Crypto::fingerprint(uint8_t out[FingerprintSize],
     crypto_blake2b(out, FingerprintSize, reinterpret_cast<const uint8_t *>(&material), sizeof(material));
 }
 
-void Crypto::hash32(uint8_t out[32], const uint8_t *data, size_t size)
+void Crypto::hash32(uint8_t out[FileKeySize], const uint8_t *data, size_t size)
 {
     crypto_blake2b(out, FileKeySize, data, size);
 }
 
-void Crypto::deriveDevelopmentSeed(uint8_t out[32], const uint8_t deviceId[DeviceIdSize])
+void Crypto::deriveDevelopmentSeed(uint8_t out[FileKeySize], const uint8_t deviceId[DeviceIdSize])
 {
     DevSeedMaterial material{};
     static constexpr char Tag[] = "DEV-ONLY-IDENTITY";
@@ -108,7 +114,7 @@ void Crypto::deriveDevelopmentSeed(uint8_t out[32], const uint8_t deviceId[Devic
 void Crypto::makeIdentity(DeviceIdentity &identity,
                           const uint8_t deviceId[DeviceIdSize],
                           const char *nickname,
-                          const uint8_t seed[32],
+                          const uint8_t seed[FileKeySize],
                           bool developmentIdentity)
 {
     identity = DeviceIdentity{};
@@ -199,7 +205,7 @@ bool Crypto::verifyInvite(const Contact &contact, PacketType type, const uint8_t
                               reinterpret_cast<const uint8_t *>(&material), sizeof(material)) == 0;
 }
 
-void Crypto::deriveSharedKey(uint8_t out[32],
+void Crypto::deriveSharedKey(uint8_t out[FileKeySize],
                              const uint8_t ownSecretKey[SecretKeySize],
                              const uint8_t ownPublicKey[PublicKeySize],
                              const uint8_t peerPublicKey[PublicKeySize])
@@ -217,39 +223,36 @@ void Crypto::deriveSharedKey(uint8_t out[32],
     crypto_wipe(&material, sizeof(material));
 }
 
-void Crypto::encryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
+void Crypto::encryptFileChunk(const uint8_t key[FileKeySize], uint32_t chunkIndex,
                               const uint8_t *input, uint8_t *output, size_t length)
 {
     const ChunkNonce nonce{chunkIndex, {}};
     crypto_chacha20_ietf(output, input, length, key, reinterpret_cast<const uint8_t *>(&nonce), 0);
 }
 
-void Crypto::decryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
+void Crypto::decryptFileChunk(const uint8_t key[FileKeySize], uint32_t chunkIndex,
                               const uint8_t *input, uint8_t *output, size_t length)
 {
     encryptFileChunk(key, chunkIndex, input, output, length);
 }
 
-void Crypto::derivePasswordKey(uint8_t out[32], const char *password, size_t passwordLength)
+void Crypto::derivePasswordKey(uint8_t out[FileKeySize], const char *password, size_t passwordLength)
 {
-    static const uint8_t Salt[16] = {
-        'N', 'e', 'o', 'n', ' ', 'G', 'e', 'n', 'e', 's', 'i', 's', ' ', 'E', 'v', 'a'
-    };
+    static constexpr char Salt[] = "Neon Genesis Eva";
 
-    // 16 KB work area is fast (<50ms) and lightweight on RP2040 (264KB RAM)
-    static uint32_t workArea[4096];
+    static uint32_t workArea[Argon2WorkWords];
 
     crypto_argon2_config config{};
     config.algorithm = CRYPTO_ARGON2_ID;
-    config.nb_blocks = 16;
-    config.nb_passes = 2;
-    config.nb_lanes = 1;
+    config.nb_blocks = Argon2Blocks;
+    config.nb_passes = Argon2Passes;
+    config.nb_lanes = Argon2Lanes;
 
     crypto_argon2_inputs inputs{};
     inputs.pass = reinterpret_cast<const uint8_t *>(password);
     inputs.pass_size = static_cast<uint32_t>(passwordLength);
-    inputs.salt = Salt;
-    inputs.salt_size = sizeof(Salt);
+    inputs.salt = reinterpret_cast<const uint8_t *>(Salt);
+    inputs.salt_size = sizeof(Salt) - 1;
 
     crypto_argon2(out, FileKeySize, workArea, config, inputs, crypto_argon2_no_extras);
 }

@@ -49,6 +49,8 @@ public:
     bool hasPendingEncryptedInvite() const { return hasPendingEncryptedInvite_; }
 
 private:
+    static constexpr uint32_t AckTimeoutMs = 1500;
+
     void initializeIdentity();
     void handleReceivedPacket(const char *activePassword, FileTransfer *fileTransfer);
     void handleReceivedPacket(FileTransfer *fileTransfer);

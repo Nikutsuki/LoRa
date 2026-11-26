@@ -14,14 +14,14 @@ public:
                             const uint8_t signingPublicKey[PublicKeySize],
                             const uint8_t boxPublicKey[PublicKeySize]);
 
-    static void hash32(uint8_t out[32], const uint8_t *data, size_t size);
+    static void hash32(uint8_t out[FileKeySize], const uint8_t *data, size_t size);
 
-    static void deriveDevelopmentSeed(uint8_t out[32], const uint8_t deviceId[DeviceIdSize]);
+    static void deriveDevelopmentSeed(uint8_t out[FileKeySize], const uint8_t deviceId[DeviceIdSize]);
 
     static void makeIdentity(DeviceIdentity &identity,
                              const uint8_t deviceId[DeviceIdSize],
                              const char *nickname,
-                             const uint8_t seed[32],
+                             const uint8_t seed[FileKeySize],
                              bool developmentIdentity);
 
     // Nonce accepts sequence so that we never generate the same nonce vector.
@@ -52,16 +52,16 @@ public:
                              PacketType type,
                              const uint8_t signature[SignatureSize]);
 
-    static void encryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
+    static void encryptFileChunk(const uint8_t key[FileKeySize], uint32_t chunkIndex,
                                  const uint8_t *input, uint8_t *output, size_t length);
 
-    static void decryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
+    static void decryptFileChunk(const uint8_t key[FileKeySize], uint32_t chunkIndex,
                                  const uint8_t *input, uint8_t *output, size_t length);
 
-    static void derivePasswordKey(uint8_t out[32], const char *password, size_t passwordLength);
+    static void derivePasswordKey(uint8_t out[FileKeySize], const char *password, size_t passwordLength);
 
 private:
-    static void deriveSharedKey(uint8_t out[32],
+    static void deriveSharedKey(uint8_t out[FileKeySize],
                                 const uint8_t ownSecretKey[SecretKeySize],
                                 const uint8_t ownPublicKey[PublicKeySize],
                                 const uint8_t peerPublicKey[PublicKeySize]);

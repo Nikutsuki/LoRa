@@ -19,6 +19,7 @@ constexpr size_t MaxPacketSize = 255;
 constexpr size_t MaxPlainTextSize = 96;
 constexpr size_t MaxFilenameSize = 64;
 constexpr size_t FileKeySize = 32;
+constexpr size_t HexSeedSize = FileKeySize * 2;
 
 constexpr uint8_t BroadcastDeviceId[DeviceIdSize] = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,

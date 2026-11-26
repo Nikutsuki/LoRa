@@ -29,7 +29,6 @@ struct UiCommand {
         AcceptInvite,
         SelectContact,
         NextContact,
-        PrevContact,
         SetNickname,
         ProvisionSeed,
         CancelFileTransfer,
@@ -70,6 +69,7 @@ private:
     static constexpr size_t InputMax = lora::MaxPlainTextSize;
     static constexpr size_t VisibleHistoryRows = 6;
     static constexpr size_t VisibleContacts = 4;
+    static constexpr size_t MaxWrappedLines = 4;
     static constexpr size_t WrapColumnWidth = 36;
     static constexpr int ProgressBarWidth = 20;
 
@@ -97,7 +97,6 @@ private:
                         const FileTransfer &fileTransfer,
                         UiCommand &outCommand);
     bool activateFocused(const RadioSession &radio, UiCommand &outCommand);
-    bool parseSlashCommand(UiCommand &outCommand);
     bool emitTextCommand(UiCommand::Type type,
                          const char *source,
                          bool clear,
@@ -137,8 +136,8 @@ private:
     char inviteMeta_[64]{};
     char identityLine_[64]{};
     char identityMeta_[32]{};
-    char contactPrimary_[4][32]{};
-    char contactSecondary_[4][32]{};
+    char contactPrimary_[VisibleContacts][32]{};
+    char contactSecondary_[VisibleContacts][32]{};
     char historyRows_[VisibleHistoryRows][80]{};
     char inputHint_[InputMax + 2]{};
     char filePopupTitle_[48]{};
@@ -164,7 +163,7 @@ private:
     };
 
     ui::TextBox inputBox_{{8, 152, 304, 26}, inputHint_};
-    ui::ListItem contactItems_[4] = {
+    ui::ListItem contactItems_[VisibleContacts] = {
         ui::ListItem{{8, 52, 304, 28}, contactPrimary_[0], contactSecondary_[0], false},
         ui::ListItem{{8, 82, 304, 28}, contactPrimary_[1], contactSecondary_[1], false},
         ui::ListItem{{8, 112, 304, 28}, contactPrimary_[2], contactSecondary_[2], false},
