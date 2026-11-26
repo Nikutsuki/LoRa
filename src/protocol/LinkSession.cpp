@@ -133,11 +133,6 @@ namespace proto
         return hostSeen_;
     }
 
-    bool LinkSession::screenOverflowed() const
-    {
-        return screenOverflowed_;
-    }
-
     bool LinkSession::sendHello(uint16_t width, uint16_t height)
     {
         HelloMessage hello;
@@ -283,14 +278,12 @@ namespace proto
         screenFullRedraw_ = fullRedraw;
         screenCount_ = 0;
         screenOpen_ = true;
-        screenOverflowed_ = false;
     }
 
     bool LinkSession::addComponent(const ComponentMessage &component)
     {
         if (!screenOpen_ || screenCount_ >= MaxScreenComponents)
         {
-            screenOverflowed_ = true;
             return false;
         }
         screenComponents_[screenCount_++] = component;

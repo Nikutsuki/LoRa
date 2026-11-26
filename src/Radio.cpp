@@ -1,4 +1,4 @@
-#include "LoraMessenger.hpp"
+#include "Radio.hpp"
 
 #include <cstring>
 
@@ -6,11 +6,11 @@
 #include "delay.h"
 #include "sx126x-board.h"
 
-namespace crypto_chat {
+namespace lora {
 
-LoraMessenger *LoraMessenger::activeInstance_ = nullptr;
+Radio *Radio::activeInstance_ = nullptr;
 
-void LoraMessenger::init()
+void Radio::init()
 {
     BoardInitMcu();
     BoardInitPeriph();
@@ -23,19 +23,19 @@ void LoraMessenger::init()
     radioEvents_.RxTimeout = onRxTimeout;
     radioEvents_.RxError = onRxError;
 
-    Radio.Init(&radioEvents_);
+    ::Radio.Init(&radioEvents_);
     configureRadio();
     startReceive();
 }
 
-void LoraMessenger::processIrq()
+void Radio::processIrq()
 {
-    if (Radio.IrqProcess != nullptr) {
-        Radio.IrqProcess();
+    if (::Radio.IrqProcess != nullptr) {
+        ::Radio.IrqProcess();
     }
 }
 
-bool LoraMessenger::sendPacket(const uint8_t *packet, size_t length)
+bool Radio::sendPacket(const uint8_t *packet, size_t length)
 {
     if (packet == nullptr || length == 0 || length > MaxPacketSize || radioBusy_) {
         return false;
@@ -48,11 +48,16 @@ bool LoraMessenger::sendPacket(const uint8_t *packet, size_t length)
 
     SX126xAntSwOff();
     DelayMs(10);
-    Radio.Send(txBuffer_, static_cast<uint8_t>(length));
+    ::Radio.Send(txBuffer_, static_cast<uint8_t>(length));
     return true;
 }
 
-LoraMessenger::Event LoraMessenger::consumeEvent()
+bool Radio::sendPacket(const PacketBuffer &packet)
+{
+    return sendPacket(packet.data, packet.length);
+}
+
+Radio::Event Radio::consumeEvent()
 {
     if (rxDone_) {
         rxDone_ = false;
@@ -84,57 +89,57 @@ LoraMessenger::Event LoraMessenger::consumeEvent()
     return Event::None;
 }
 
-bool LoraMessenger::isBusy() const
+bool Radio::isBusy() const
 {
     return radioBusy_;
 }
 
-const uint8_t *LoraMessenger::receivedPacket() const
+const uint8_t *Radio::receivedPacket() const
 {
     return rxBuffer_;
 }
 
-size_t LoraMessenger::receivedPacketLength() const
+size_t Radio::receivedPacketLength() const
 {
     return rxLength_;
 }
 
-void LoraMessenger::startReceive()
+void Radio::startReceive()
 {
     if (radioBusy_) {
         return;
     }
     SX126xAntSwOn();
-    Radio.Rx(0);
+    ::Radio.Rx(0);
 }
 
-void LoraMessenger::configureRadio()
+void Radio::configureRadio()
 {
-    Radio.SetChannel(Frequency);
-    Radio.SetTxConfig(MODEM_LORA, TxOutputPower, 0, Bandwidth,
-                      SpreadingFactor, CodingRate,
-                      PreambleLength, FixLengthPayload,
-                      true, 0, 0, IqInversion, TxTimeoutValue);
-    Radio.SetRxConfig(MODEM_LORA, Bandwidth, SpreadingFactor, CodingRate,
-                      0, PreambleLength, 0, FixLengthPayload,
-                      MaxPacketSize, true, 0, 0, IqInversion, true);
+    ::Radio.SetChannel(Frequency);
+    ::Radio.SetTxConfig(MODEM_LORA, TxOutputPower, 0, Bandwidth,
+                        SpreadingFactor, CodingRate,
+                        PreambleLength, FixLengthPayload,
+                        true, 0, 0, IqInversion, TxTimeoutValue);
+    ::Radio.SetRxConfig(MODEM_LORA, Bandwidth, SpreadingFactor, CodingRate,
+                        0, PreambleLength, 0, FixLengthPayload,
+                        MaxPacketSize, true, 0, 0, IqInversion, true);
 }
 
-void LoraMessenger::onTxDone()
+void Radio::onTxDone()
 {
     if (activeInstance_ != nullptr) {
         activeInstance_->txDone_ = true;
     }
 }
 
-void LoraMessenger::onTxTimeout()
+void Radio::onTxTimeout()
 {
     if (activeInstance_ != nullptr) {
         activeInstance_->txTimeout_ = true;
     }
 }
 
-void LoraMessenger::onRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr)
+void Radio::onRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr)
 {
     if (activeInstance_ == nullptr) {
         return;
@@ -148,14 +153,14 @@ void LoraMessenger::onRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8
     activeInstance_->startReceive();
 }
 
-void LoraMessenger::onRxTimeout()
+void Radio::onRxTimeout()
 {
     if (activeInstance_ != nullptr) {
         activeInstance_->startReceive();
     }
 }
 
-void LoraMessenger::onRxError()
+void Radio::onRxError()
 {
     if (activeInstance_ != nullptr) {
         activeInstance_->rxError_ = true;

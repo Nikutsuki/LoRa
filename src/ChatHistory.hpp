@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace crypto_chat {
+namespace lora {
 
 /*!
  * One line of chat history.
@@ -12,10 +12,9 @@ struct ChatEntry {
     enum class Direction : uint8_t {
         Incoming,
         Outgoing,
-        System,
     };
 
-    Direction direction = Direction::System;
+    Direction direction = Direction::Incoming;
     char text[96]{};
     float RSSI = 0.0f;
     float SNR = 0.0f;
@@ -44,11 +43,6 @@ public:
 
     /*! Appends a message this device sent. */
     size_t addOutgoing(const char *text);
-
-    /*! Appends a system note such as a notice or error. */
-    size_t addSystem(const char *text);
-
-    void clear();
 
     size_t count() const;
 

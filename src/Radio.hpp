@@ -3,12 +3,12 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "CryptoTypes.hpp"
+#include "Types.hpp"
 #include "radio.h"
 
-namespace crypto_chat {
+namespace lora {
 
-class LoraMessenger {
+class Radio {
 public:
     enum class Event {
         None,
@@ -21,6 +21,7 @@ public:
     void init();
     void processIrq();
     bool sendPacket(const uint8_t *packet, size_t length);
+    bool sendPacket(const PacketBuffer &packet);
     Event consumeEvent();
     bool isBusy() const;
     const uint8_t *receivedPacket() const;
@@ -76,7 +77,7 @@ private:
     int8_t lastSnr_ = 0;
     bool radioBusy_ = false;
 
-    static LoraMessenger *activeInstance_;
+    static Radio *activeInstance_;
 };
 
 }

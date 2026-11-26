@@ -6,7 +6,7 @@
 #include "hardware/regs/addressmap.h"
 #include "hardware/sync.h"
 
-namespace crypto_chat {
+namespace lora {
 namespace {
 constexpr uint32_t FlashSectorSize = FLASH_SECTOR_SIZE;
 constexpr uint32_t FlashPageSize = FLASH_PAGE_SIZE;
@@ -103,25 +103,10 @@ const Contact *ContactStore::contactAt(size_t index) const
     return nullptr;
 }
 
-Contact *ContactStore::contactAt(size_t index)
-{
-    return const_cast<Contact *>(static_cast<const ContactStore *>(this)->contactAt(index));
-}
-
 const Contact *ContactStore::findByDeviceId(const uint8_t deviceId[DeviceIdSize]) const
 {
     for (const auto &contact : image_.contacts) {
         if (contact.valid && std::memcmp(contact.deviceId, deviceId, DeviceIdSize) == 0) {
-            return &contact;
-        }
-    }
-    return nullptr;
-}
-
-const Contact *ContactStore::findByFingerprint(const uint8_t fingerprint[FingerprintSize]) const
-{
-    for (const auto &contact : image_.contacts) {
-        if (contact.valid && std::memcmp(contact.fingerprint, fingerprint, FingerprintSize) == 0) {
             return &contact;
         }
     }

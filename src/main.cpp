@@ -1,8 +1,8 @@
-#include "HardwareTestApp.hpp"
+#include "App.hpp"
 
 int main()
 {
-    static HardwareTestApp app;
+    static App app;
     app.run();
     return 0;
 }

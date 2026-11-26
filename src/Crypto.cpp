@@ -1,11 +1,11 @@
-#include "CryptoBox.hpp"
+#include "Crypto.hpp"
 
 #include <cstring>
 
 #include "monocypher.h"
 #include "pico/stdlib.h"
 
-namespace crypto_chat {
+namespace lora {
 namespace {
 
 void copyNickname(char out[NicknameSize], const char *nickname)
@@ -25,7 +25,7 @@ void append(uint8_t *&cursor, const uint8_t *data, size_t size)
 
 }
 
-void CryptoBox::fingerprint(uint8_t out[FingerprintSize],
+void Crypto::fingerprint(uint8_t out[FingerprintSize],
                             const uint8_t deviceId[DeviceIdSize],
                             const uint8_t signingPublicKey[PublicKeySize],
                             const uint8_t boxPublicKey[PublicKeySize])
@@ -38,12 +38,12 @@ void CryptoBox::fingerprint(uint8_t out[FingerprintSize],
     crypto_blake2b(out, FingerprintSize, material, sizeof(material));
 }
 
-void CryptoBox::hash32(uint8_t out[32], const uint8_t *data, size_t size)
+void Crypto::hash32(uint8_t out[32], const uint8_t *data, size_t size)
 {
     crypto_blake2b(out, 32, data, size);
 }
 
-void CryptoBox::deriveDevelopmentSeed(uint8_t out[32], const uint8_t deviceId[DeviceIdSize])
+void Crypto::deriveDevelopmentSeed(uint8_t out[32], const uint8_t deviceId[DeviceIdSize])
 {
     uint8_t material[32]{};
     std::memcpy(material, "DEV-ONLY-IDENTITY", 17);
@@ -53,7 +53,7 @@ void CryptoBox::deriveDevelopmentSeed(uint8_t out[32], const uint8_t deviceId[De
     crypto_blake2b(out, 32, material, sizeof(material));
 }
 
-void CryptoBox::makeIdentity(DeviceIdentity &identity,
+void Crypto::makeIdentity(DeviceIdentity &identity,
                              const uint8_t deviceId[DeviceIdSize],
                              const char *nickname,
                              const uint8_t seed[32],
@@ -82,7 +82,7 @@ void CryptoBox::makeIdentity(DeviceIdentity &identity,
     crypto_wipe(boxSeed, sizeof(boxSeed));
 }
 
-void CryptoBox::makeNonce(uint8_t nonce[NonceSize],
+void Crypto::makeNonce(uint8_t nonce[NonceSize],
                           const uint8_t senderDeviceId[DeviceIdSize],
                           const uint8_t recipientDeviceId[DeviceIdSize],
                           uint32_t sequence)
@@ -93,47 +93,41 @@ void CryptoBox::makeNonce(uint8_t nonce[NonceSize],
     std::memcpy(nonce + 16, &sequence, sizeof(sequence));
 }
 
-bool CryptoBox::encryptForContact(const DeviceIdentity &identity,
-                                  const Contact &contact,
-                                  const uint8_t nonce[NonceSize],
-                                  const uint8_t *additionalData,
-                                  size_t additionalDataLength,
-                                  const uint8_t *plainText,
-                                  size_t plainTextLength,
-                                  uint8_t *cipherText,
-                                  uint8_t mac[MacSize])
+bool Crypto::encryptForContact(const PeerSession &peer,
+                               const AeadContext &ctx,
+                               const uint8_t *plainText,
+                               size_t plainTextLength,
+                               uint8_t *cipherText,
+                               uint8_t mac[MacSize])
 {
-    if (!contact.valid || plainTextLength > MaxPlainTextSize) {
+    if (!peer.remote.valid || plainTextLength > MaxPlainTextSize) {
         return false;
     }
     uint8_t key[32];
-    deriveSharedKey(key, identity.boxSecretKey, identity.boxPublicKey, contact.boxPublicKey);
-    crypto_aead_lock(cipherText, mac, key, nonce, additionalData, additionalDataLength, plainText, plainTextLength);
+    deriveSharedKey(key, peer.local.boxSecretKey, peer.local.boxPublicKey, peer.remote.boxPublicKey);
+    crypto_aead_lock(cipherText, mac, key, ctx.nonce, ctx.aad, ctx.aadLength, plainText, plainTextLength);
     crypto_wipe(key, sizeof(key));
     return true;
 }
 
-bool CryptoBox::decryptFromContact(const DeviceIdentity &identity,
-                                   const Contact &contact,
-                                   const uint8_t nonce[NonceSize],
-                                   const uint8_t *additionalData,
-                                   size_t additionalDataLength,
-                                   const uint8_t *cipherText,
-                                   size_t cipherTextLength,
-                                   const uint8_t mac[MacSize],
-                                   uint8_t *plainText)
+bool Crypto::decryptFromContact(const PeerSession &peer,
+                                const AeadContext &ctx,
+                                const uint8_t *cipherText,
+                                size_t cipherTextLength,
+                                const uint8_t mac[MacSize],
+                                uint8_t *plainText)
 {
-    if (!contact.valid || cipherTextLength > MaxPlainTextSize) {
+    if (!peer.remote.valid || cipherTextLength > MaxPlainTextSize) {
         return false;
     }
     uint8_t key[32];
-    deriveSharedKey(key, identity.boxSecretKey, identity.boxPublicKey, contact.boxPublicKey);
-    int result = crypto_aead_unlock(plainText, mac, key, nonce, additionalData, additionalDataLength, cipherText, cipherTextLength);
+    deriveSharedKey(key, peer.local.boxSecretKey, peer.local.boxPublicKey, peer.remote.boxPublicKey);
+    int result = crypto_aead_unlock(plainText, mac, key, ctx.nonce, ctx.aad, ctx.aadLength, cipherText, cipherTextLength);
     crypto_wipe(key, sizeof(key));
     return result == 0;
 }
 
-bool CryptoBox::signInvite(const DeviceIdentity &identity, PacketType type, uint8_t signature[SignatureSize])
+bool Crypto::signInvite(const DeviceIdentity &identity, PacketType type, uint8_t signature[SignatureSize])
 {
     Contact self{};
     self.valid = true;
@@ -149,14 +143,14 @@ bool CryptoBox::signInvite(const DeviceIdentity &identity, PacketType type, uint
     return true;
 }
 
-bool CryptoBox::verifyInvite(const Contact &contact, PacketType type, const uint8_t signature[SignatureSize])
+bool Crypto::verifyInvite(const Contact &contact, PacketType type, const uint8_t signature[SignatureSize])
 {
     uint8_t message[1 + DeviceIdSize + NicknameSize + PublicKeySize + PublicKeySize];
     size_t size = inviteMessage(message, contact, type);
     return crypto_eddsa_check(signature, contact.signingPublicKey, message, size) == 0;
 }
 
-void CryptoBox::deriveSharedKey(uint8_t out[32],
+void Crypto::deriveSharedKey(uint8_t out[32],
                                 const uint8_t ownSecretKey[SecretKeySize],
                                 const uint8_t ownPublicKey[PublicKeySize],
                                 const uint8_t peerPublicKey[PublicKeySize])
@@ -178,7 +172,7 @@ void CryptoBox::deriveSharedKey(uint8_t out[32],
     crypto_wipe(material, sizeof(material));
 }
 
-size_t CryptoBox::inviteMessage(uint8_t *out, const Contact &contact, PacketType type)
+size_t Crypto::inviteMessage(uint8_t *out, const Contact &contact, PacketType type)
 {
     uint8_t *cursor = out;
     uint8_t typeByte = static_cast<uint8_t>(type);
@@ -190,7 +184,7 @@ size_t CryptoBox::inviteMessage(uint8_t *out, const Contact &contact, PacketType
     return static_cast<size_t>(cursor - out);
 }
 
-void CryptoBox::encryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
+void Crypto::encryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
                                  const uint8_t *input, uint8_t *output, size_t length)
 {
     uint8_t nonce[12]{};
@@ -202,16 +196,16 @@ void CryptoBox::encryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
     crypto_chacha20_ietf(output, input, length, key, nonce, 0);
 }
 
-void CryptoBox::decryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
+void Crypto::decryptFileChunk(const uint8_t key[32], uint32_t chunkIndex,
                                  const uint8_t *input, uint8_t *output, size_t length)
 {
     encryptFileChunk(key, chunkIndex, input, output, length);
 }
 
-void CryptoBox::derivePasswordKey(uint8_t out[32], const char *password, size_t passwordLength)
+void Crypto::derivePasswordKey(uint8_t out[32], const char *password, size_t passwordLength)
 {
     static const uint8_t Salt[16] = {
-        'L', 'o', 'R', 'a', 'C', 'h', 'a', 't', 'P', 'a', 'i', 'r', 'S', 'a', 'l', 't'
+        'N', 'e', 'o', 'n', ' ', 'G', 'e', 'n', 'e', 's', 'i', 's', ' ', 'E', 'v', 'a'
     };
 
     // 16 KB work area is fast (<50ms) and lightweight on RP2040 (264KB RAM)

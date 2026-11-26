@@ -3,9 +3,9 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "CryptoTypes.hpp"
+#include "Types.hpp"
 
-namespace crypto_chat {
+namespace lora {
 
 class ContactStore {
 public:
@@ -28,9 +28,7 @@ public:
 
     size_t contactCount() const;
     const Contact *contactAt(size_t index) const;
-    Contact *contactAt(size_t index);
     const Contact *findByDeviceId(const uint8_t deviceId[DeviceIdSize]) const;
-    const Contact *findByFingerprint(const uint8_t fingerprint[FingerprintSize]) const;
     bool nicknameCollisionWithDifferentKey(const Contact &candidate) const;
     bool upsertContact(const Contact &contact);
     void clearContacts();

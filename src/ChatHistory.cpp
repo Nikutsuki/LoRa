@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <cstring>
 
-namespace crypto_chat {
+namespace lora {
 
 size_t ChatHistory::addIncoming(const char *sender, const char *text, float RSSI, float SNR)
 {
@@ -15,18 +15,6 @@ size_t ChatHistory::addOutgoing(const char *text)
 {
     push(ChatEntry::Direction::Outgoing, nullptr, text, ChatEntry::Status::None, 0.0f, 0.0f);
     return count_ - 1;
-}
-
-size_t ChatHistory::addSystem(const char *text)
-{
-    push(ChatEntry::Direction::System, nullptr, text, ChatEntry::Status::None, 0.0f, 0.0f);
-    return count_ - 1;
-}
-
-void ChatHistory::clear()
-{
-    head_ = 0;
-    count_ = 0;
 }
 
 size_t ChatHistory::count() const

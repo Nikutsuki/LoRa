@@ -3,11 +3,11 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "CryptoTypes.hpp"
+#include "Types.hpp"
 
-namespace crypto_chat {
+namespace lora {
 
-class CryptoBox {
+class Crypto {
 public:
     static void fingerprint(uint8_t out[FingerprintSize],
                             const uint8_t deviceId[DeviceIdSize],
@@ -24,27 +24,21 @@ public:
                              const uint8_t seed[32],
                              bool developmentIdentity);
 
-    // Nonce accepts sequence so that we never generate the same nonce vector
+    // Nonce accepts sequence so that we never generate the same nonce vector.
     static void makeNonce(uint8_t nonce[NonceSize],
                           const uint8_t senderDeviceId[DeviceIdSize],
                           const uint8_t recipientDeviceId[DeviceIdSize],
                           uint32_t sequence);
 
-    static bool encryptForContact(const DeviceIdentity &identity,
-                                  const Contact &contact,
-                                  const uint8_t nonce[NonceSize],
-                                  const uint8_t *additionalData,
-                                  size_t additionalDataLength,
+    static bool encryptForContact(const PeerSession &peer,
+                                  const AeadContext &ctx,
                                   const uint8_t *plainText,
                                   size_t plainTextLength,
                                   uint8_t *cipherText,
                                   uint8_t mac[MacSize]);
 
-    static bool decryptFromContact(const DeviceIdentity &identity,
-                                   const Contact &contact,
-                                   const uint8_t nonce[NonceSize],
-                                   const uint8_t *additionalData,
-                                   size_t additionalDataLength,
+    static bool decryptFromContact(const PeerSession &peer,
+                                   const AeadContext &ctx,
                                    const uint8_t *cipherText,
                                    size_t cipherTextLength,
                                    const uint8_t mac[MacSize],
@@ -75,4 +69,4 @@ private:
     static size_t inviteMessage(uint8_t *out, const Contact &contact, PacketType type);
 };
 
-}
+} // namespace lora

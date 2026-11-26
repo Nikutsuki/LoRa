@@ -6,7 +6,6 @@
 
 #include "ByteStream.hpp"
 #include "Messages.hpp"
-#include "UartTransport.hpp"
 #include "../ui/ScreenModel.hpp"
 
 namespace proto {
@@ -85,15 +84,6 @@ public:
      */
     bool nextKey(KeyMessage &key);
 
-    /*!
-     * True when the most recent Screen frame dropped a widget because it
-     * exceeded MaxScreenComponents.
-     */
-    bool screenOverflowed() const;
-
-    /*!
-     * True when the host has sent at least one valid frame since boot.
-     */
     bool hostSeen() const;
 
     /*!
@@ -146,7 +136,6 @@ private:
      * Surfaced so the app can report a layout that outgrew the protocol budget
      * instead of silently showing the host a screen with missing controls.
      */
-    bool screenOverflowed_ = false;
 
     bool hostSeen_ = false;
     bool resyncRequested_ = false;

@@ -1,4 +1,3 @@
-# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
 if(WIN32)
     set(USERHOME $ENV{USERPROFILE})
 else()
@@ -11,13 +10,11 @@ set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
 if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
-# ====================================================================================
+
 cmake_minimum_required(VERSION 3.12)
 
 set(PICO_BOARD pico CACHE STRING "Board type")
 
-# pico_sdk_import.cmake is a single file copied from this SDK.
-# Note: this must happen before project().
 include(pico_sdk_import.cmake)
 
 project(pico_lora_sx1262 CXX C ASM)
@@ -26,14 +23,6 @@ pico_sdk_init()
 
 set(LORAMAC_NODE_PATH ${CMAKE_CURRENT_LIST_DIR}/lib/LoRaMac-node)
 
-# ------------------------------------------------------------------------------------
-# Semtech LoRaMac-node: SX126x radio driver only.
-#
-# Upstream is a full LoRaWAN stack of roughly 1600 files. Only the driver and the
-# system shims it needs are vendored here, so this is a point-to-point radio
-# rather than a MAC layer. The source list below is the complete transitive
-# closure of what those files include; extend it if you enable more of upstream.
-# ------------------------------------------------------------------------------------
 add_library(pico_loramac_node INTERFACE)
 
 target_sources(pico_loramac_node INTERFACE
@@ -49,7 +38,6 @@ target_sources(pico_loramac_node INTERFACE
     ${LORAMAC_NODE_PATH}/src/system/systime.c
     ${LORAMAC_NODE_PATH}/src/system/timer.c
 
-    # Board glue adapting the driver onto RP2040 peripherals.
     ${CMAKE_CURRENT_LIST_DIR}/src/board/board.c
     ${CMAKE_CURRENT_LIST_DIR}/src/board/delay-board.c
     ${CMAKE_CURRENT_LIST_DIR}/src/board/eeprom-board.c
@@ -70,19 +58,20 @@ target_include_directories(pico_loramac_node INTERFACE
 
 target_link_libraries(pico_loramac_node INTERFACE pico_stdlib pico_unique_id hardware_spi)
 
-# ------------------------------------------------------------------------------------
-# Application
-# ------------------------------------------------------------------------------------
 add_executable(pico_lora_messenger
     src/main.cpp
-    src/HardwareTestApp.cpp
+    src/App.cpp
+    src/HostLink.cpp
+    src/RadioSession.cpp
+    src/FileTransfer.cpp
+    src/UiController.cpp
     src/Ili9341Display.cpp
     src/CardKbKeyboard.cpp
-    src/CryptoBox.cpp
-    src/InviteProtocol.cpp
+    src/Crypto.cpp
+    src/Packet.cpp
     src/ContactStore.cpp
     src/ChatHistory.cpp
-    src/LoraMessenger.cpp
+    src/Radio.cpp
 
     src/ui/Ui.cpp
     src/ui/ScreenModel.cpp
@@ -92,7 +81,6 @@ add_executable(pico_lora_messenger
     src/protocol/Messages.cpp
     src/protocol/LinkSession.cpp
     src/protocol/UsbCdcTransport.cpp
-    src/protocol/UartTransport.cpp
 
     src/adapters/UartScreen.cpp
     src/adapters/UartInput.cpp
@@ -121,8 +109,6 @@ target_link_libraries(pico_lora_messenger
     pico_stdlib
 )
 
-# The desktop UI talks to this firmware over the USB CDC port, so enable USB
-# stdio and leave the hardware UART for the optional link transport.
 pico_enable_stdio_usb(pico_lora_messenger 1)
 pico_enable_stdio_uart(pico_lora_messenger 0)
 
