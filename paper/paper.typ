@@ -50,7 +50,7 @@
 
 Żyjemy w czasach gdzie smartfon i sieć GSM to nieodłączna część naszego codziennego życia, cała bankowość, ratownictwo, komunikacja, wszystko to opiera się na infrastrukturze telekomunikacyjnej.
 
-Ogromnym problemem jest podatność tej infrastruktury. Pomimo ciągłęgo ulepszania i unowocześniania jej, nadal jest ona dość krucha. Wichury, powodzie, opady śniegu oraz awarie prądu natychmiast sprawiają że stacje GSM stają się bezużyteczne. W przypadku wybuchu konfliktu zbrojnego oczywistym jest że tak krytyczna infrastruktura będzie jednym z pierwszych celów, aby upośledzić koordynację kraju w tak kluczowym momencie.
+Ogromnym problemem jest podatność tej infrastruktury. Pomimo ciągłego ulepszania i unowocześniania jej, nadal jest ona dość krucha. Wichury, powodzie, opady śniegu oraz awarie prądu natychmiast sprawiają że stacje GSM stają się bezużyteczne. W przypadku wybuchu konfliktu zbrojnego oczywistym jest że tak krytyczna infrastruktura będzie jednym z pierwszych celów, aby upośledzić koordynację kraju w tak kluczowym momencie.
 
 Rośnie również świadomość dotycząca cyberbezpieczeństwa oraz architektury systemów, tego czy nasze dane przechowywane są bezpiecznie, scentralizowane systemy niosą ze sobą ryzyko punktów pojedynczej awarii (Single point of failure), jak i również prywatności, czyli podatność ruchu sieciowego na analizę i profilowanie oraz to, kto i jak przechowuje nasze dane, i komu je udostępnia.
 
@@ -150,7 +150,7 @@ $
       [Coding Rate (CR)],
       [4/5, 4/6, 4/7, 4/8],
       [Zwiększa rozmiar pakietu proporcjonalnie do wybranego kodowania],
-      [Wyższe wartości zwiekszają nadmiarowość dla poprawy odporności na błędy, ale zwiększają ToA],
+      [Wyższe wartości zwiększają nadmiarowość dla poprawy odporności na błędy, ale zwiększają ToA],
     )
   },
   caption: [Parametry modulacji LoRa i ich efekt na transmisję]
@@ -327,14 +327,14 @@ Nawet bezbłędna implementacja *X25519* oraz *ChaCha20-Poly1305* nie chroni prz
 
 == Kryteria doboru stosu technologicznego
 
-Najważniejszą częścią doboru stosu technologicznego w systemach wbudowanych jest wzięcie pod uwagę ograniczeń które ograniczają projekt. W przypadku transmiji LoRa najważniejszym ograniczeniem jest rozmiar pojedynczego pakietu, który wynosi 255 bajtów, oraz regulacje prawne, które mocno ograniczają czas nadawania i limity mocy. Sprawia to że każdy bajt podczas transmisji jest jeszcze bardziej cenny niż w innych typach transmisji, dużym wyzwaniem jest więc uzyskanie silnej kryptografii względem zużycia baterii i czasu trwania transmisji (_Time on Air_). W projekcie wykorzystano moduł SX1262 który posiada konfigurowalne parametry:
+Najważniejszą częścią doboru stosu technologicznego w systemach wbudowanych jest wzięcie pod uwagę ograniczeń które ograniczają projekt. W przypadku transmisji LoRa najważniejszym ograniczeniem jest rozmiar pojedynczego pakietu, który wynosi 255 bajtów, oraz regulacje prawne, które mocno ograniczają czas nadawania i limity mocy. Sprawia to że każdy bajt podczas transmisji jest jeszcze bardziej cenny niż w innych typach transmisji, dużym wyzwaniem jest więc uzyskanie silnej kryptografii względem zużycia baterii i czasu trwania transmisji (_Time on Air_). W projekcie wykorzystano moduł SX1262 który posiada konfigurowalne parametry:
 - Bandwidth w zakresie 7.81 - 500 kHz
 - Spreading Factor w zakresie 5 - 12
 - Kodowanie w zakresie 1 - 4
 - Częstotliwość w zakresie 410 - 510 MHz
 - Moc w zakresie -9 dBm - +22 dBm 
 
-\ Parametry zostały wybrane tak aby osiągnąć złoty środek, BW = 125 kHz aby zachować czułość odbiornika na tanim układzie, SF = 9 w celu przyspieszenia transmisji, kodowanie 4/5 dla podstawowej korekcji błędów, standardową preambułę 8 pakietów oraz moc 10 dBm ze względu na normy europejskie. 
+\ Parametry zostały wybrane tak aby osiągnąć złoty środek, BW = 125 kHz aby zachować czułość odbiornika na tanim układzie, SF = 9 w celu przyspieszenia transmisji, kodowanie 4/5 dla podstawowej korekcji błędów, standardową preambułę 8 symboli oraz moc 10 dBm ze względu na normy europejskie. 
 
 \ Ze względu na brak sprzętowej akceleracji AES oraz ograniczoną pamięć SRAM, w projekcie zrezygnowano z bibliotek takich jak mbedTLS czy wolfSSL na rzecz lżejszej biblioteki *Monocypher*, napisana jest ona w standardzie C99. Dzięki temu wydajność kryptografii na rdzeniu ARM Cortex-M0+ jest dużo lepsza. Główne zalety *Monocypher* to:
 - Odporność na _side-channel attacks_, wszystkie krytyczne operacje kryptograficzne zaimplementowane są w sposób stałoczasowy (_constant-time_), bez rozgałęzień programu, i indeksowania tablic na podstawie sekretów, co chroni program przed analizą czasową (_timing attacks_).
@@ -350,6 +350,8 @@ Najważniejszą częścią doboru stosu technologicznego w systemach wbudowanych
   image("images/diagram1.svg"),
   caption: [Schemat wyprowadzenia kluczy urządzenia (Ed25519 i X25519) oraz odcisku tożsamości (BLAKE2b)]
 )
+
+=== Generowanie klucza sesyjnego i szyfrowanie wiadomości
 
 #figure(
   image("images/diagram2.svg"),
@@ -433,19 +435,64 @@ Najważniejszą częścią doboru stosu technologicznego w systemach wbudowanych
   • Dlaczego RP2040: 2 rdzenie Cortex-M0+ (133 MHz), elastyczne PIO, brak wbudowanego prądożernego radia Wi-Fi/BT (niższy pobór w stanie czuwania niż ciągle aktywny ESP32), dojrzałe Pico SDK w C++,
   niski koszt.
 
-  Natomiast w kolejnych sekcjach zdecydowanie warto dodać jeszcze te 5 diagramów, bo każda z nich ma inną dynamikę:
-
-  5. 5.3 (Maszyny stanów): Diagram stanów (stateDiagram-v2) — główne widoki UI (Chat, Contacts, Invite, Identity) oraz stany radia/transferu (Idle / AwaitingAck / SendingFile / ReceivingFile).
-  Łącznie wyjdzie Ci 8 konkretnych diagramów na całą pracę — każdy inny, zero powtórek i dokładnie w miejscach, o które pyta komisja na obronie.
+  
+  1. Rozdział 4: dopisać krótki tekst omawiający diagram1–diagram5 (żeby rysunki nie stały same) i poprawić drobiazgi (8 symboli zamiast 8 pakietów, etykietę w diagram3.svg, eksport diagram5 do .svg).
+  2. Rozdział 5: wypełnić 5.1–5.4 na bazie obecnego kodu (sprzęt + diagram6.svg, Pico SDK/CMake/Monocypher/LoRaMac-node, 4 maszyny stanów + diagram7.svg/diagram8.svg, interfejs LCD/CardKB + USB CDC/TUI ze
+  zrzutem ekranu).
+  3. Rozdział 6: zebrać i opisać pomiary (zasięg + RSSI/SNR, czas kryptografii na RP2040, test transferu pliku, tabela testów funkcjonalnych/bezpieczeństwa).
+  4. Rozdział 7: spisać Wnioski (podsumowanie celu, ograniczenia konstrukcji i kryptografii, kierunki rozwoju np. RP2350/kompresja).
+  5. Porządki końcowe: wywalić wszystkie // AI NOTE, poprawić numerację rozdziałów w punkcie 1.3 Struktura (teraz jest przesunięta o 1), uzupełnić bibliografia.bib i wygenerować paper.pdf.
 // AI NOTE!!!!!!!!
 
 == Środowisko programistyczne
 
 == Opis maszyn stanów oraz przepływu danych
 
+#figure(
+  image("images/diagram7.svg"),
+  caption: [Diagram stanu UI]
+)
+
+#figure(
+  image("images/diagram8.svg"),
+  caption: [Diagram stanu modułu radiowego]
+)
+
 == Interfejsy użytkownika
 
-= Przyklady eksperymenty testowanie
+= Przykłady. eksperymenty, testowanie
+
+// AI NOTE
+
+  Do rozdziału 6 (Przykłady, eksperymenty i testowanie) najlepiej wrzucić konkretne pomiary, które bez problemu zbierzesz na tym sprzęcie:
+
+  1. Testy zasięgu i jakości sygnału (RSSI / SNR / niezawodność)
+      • Urządzenie już wyświetla RSSI (dBm) i SNR (dB) przy każdej odebranej wiadomości.
+      • Zrób serie po np. 20 pakietów w kilku punktach (np. w budynku przez ściany + na zewnątrz na dystansach 100 m, 300 m, 500 m, 1 km+) dla aktualnych ustawień (433.92 MHz, SF9, BW 125 kHz, +10 dBm).
+      • Wynik: tabela lub wykres Odległość → średnie RSSI, średnie SNR, % dostarczonych pakietów (PDR).
+  2. Pomiar narzutu czasowego kryptografii na RP2040
+      • Zmierz to_us_since_boot(get_absolute_time()) przed i po:
+          • generowaniu tożsamości (Crypto::makeIdentity),
+          • wyprowadzeniu klucza z hasła (Argon2id — 16 KB, 2 przebiegi),
+          • szyfrowaniu/deszyfrowaniu wiadomości (XChaCha20-Poly1305),
+          • szyfrowaniu fragmentu pliku (ChaCha20-IETF).
+      • Zestaw to w tabeli z czasem transmisji radiowej Time-on-Air — pokażesz twardymi liczbami, że kryptografia trwa pojedyncze milisekundy (poza Argon2id przy parowaniu) i nie spowalnia radia.
+  3. Testy transferu plików
+      • Prześlij przykładowy plik (np. 1 KB i 5 KB) między dwoma urządzeniami.
+      • Zapisz czas całkowity, efektywną przepustowość (B/s) oraz narzut nagłówków/paczek względem rozmiaru samego pliku.
+  4. Testy funkcjonalne i bezpieczeństwa (tabela przypadków testowych)
+      • Przetestuj i opisz w tabeli (Scenariusz / Oczekiwany rezultat / Wynik):
+          • parowanie otwarte oraz z poprawnym/błędnym hasłem (Wrong password!),
+          • próba podszycia się pod istniejący nick (Nickname impersonation rejected),
+          • wiadomość od nieznanego nadawcy (Encrypted msg from unknown),
+          • brak potwierdzenia ACK po 1500 ms (przejście wiadomości w Failed),
+          • anulowanie transferu pliku w trakcie (FileExchangeCancel),
+          • trwałość tożsamości i listy kontaktów po resecie zasilania (ContactStore we Flashu + CRC32).
+
+  5. Pobór prądu (opcjonalnie, jeśli masz multimetr / miernik USB)
+      • Porównanie poboru prądu w stanie nasłuchu RX, podczas nadawania TX (+10 dBm) oraz z włączonym/odłączonym ekranem ILI9341 — na tej podstawie możesz policzyć szacowany czas pracy na baterii.
+
+//
 
 = Wnioski
 
@@ -472,18 +519,8 @@ Najważniejszą częścią doboru stosu technologicznego w systemach wbudowanych
   5. Brak timeoutu bezczynności po stronie odbiorcy (RP2040 B): W razie nagłego rozłączenia nadawcy odbiorca pozostaje w stanie Receiving do momentu ręcznego anulowania przez użytkownika.
   6. Brak zerowania currentFileKey przy FileExchangeEnd na odbiorcy: Po stronie nadawcy (oraz przy FileExchangeCancel po obu stronach) klucz jest czyszczony przez memset, ale w obsłudze FileExchangeEnd na odbiorcy tego brakuje.
   7. Brak trwałego licznika sequence_ (reset po restarcie): Licznik sequence_ jest trzymany w RAM i po restarcie urządzenia startuje od 0, co przy statycznym współdzielonym sekrecie ECDH stwarza ryzyko powtórzenia nonce między sesjami.
+  
 // AI NOTE!!!!!!!!!!!!
-
-// AI NOTE!!!
-Wskazówki do Bibliografii (co cytować):
-
-2. Raspberry Pi Ltd. – RP2040 Datasheet oraz Raspberry Pi Pico C/C++ SDK.
-3. L. Louédic (Monocypher) – Oficjalna dokumentacja i specyfikacja biblioteki kryptograficznej Monocypher.
-4. RFC 7748 – Elliptic Curves for Security (Krzywe Curve25519 / X25519).
-5. RFC 8439 – ChaCha20 and Poly1305 for IETF Protocols.
-6. Artykuły naukowe z IEEE Xplore dotyczące analizy zasięgu modulacji LoRa (hasła: LoRa path loss models, LoRa CSS performance under noise).
-7. Normy ETSI dotyczące wykorzystania pasm nielicencjonowanych ISM w Europie (Short Range Devices - SRD).
-// AI NOTE!!!
 
 #pagebreak()
 
