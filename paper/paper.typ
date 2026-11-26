@@ -376,7 +376,7 @@ Najważniejszą częścią doboru stosu technologicznego w systemach wbudowanych
     bytes(8, fill: rgb("#e8f0fe"))[MAC Poly1305 (16 B)],
     bytes(8, fill: rgb("#d5e8d4"))[Data XChaCha20 (1-96 B)],
   ),
-  caption: [meow]
+  caption: [Schemat pakietu *EncryptedMessage*]
 )
 
 // AI NOTE
@@ -402,16 +402,31 @@ Najważniejszą częścią doboru stosu technologicznego w systemach wbudowanych
 
 #figure(
   image("images/diagram3.svg"),
-  caption: [Schemat protokołu parowanai urządzeń]
+  caption: [Schemat protokołu parowania urządzeń]
 )
 
 == Protokół wymiany wiadomości oraz ACK
 
+#figure(
+  image("images/diagram4.svg"),
+  caption: [Schemat protokołu wymiany wiadomości]
+)
+
 == Algorytm transferu plików
+
+#figure(
+  image("images/diagram5.png"),
+  caption: [Schemat protokołu wymiany plików]
+)
 
 = Implementacja
 
 == Architektura sprzętowa
+
+#figure(
+  image("images/diagram6.svg"),
+  caption: [Schemat połączeń]
+)
 
 // AI NOTE!!!!
 2. Platforma sprzętowa: RP2040 vs ESP32 vs STM32:
@@ -419,10 +434,7 @@ Najważniejszą częścią doboru stosu technologicznego w systemach wbudowanych
   niski koszt.
 
   Natomiast w kolejnych sekcjach zdecydowanie warto dodać jeszcze te 5 diagramów, bo każda z nich ma inną dynamikę:
-  
-  2. 4.4 (Wiadomości i ACK): Diagram sekwencji UML — wysłanie EncryptedMessage, oczekiwanie z timeoutem, MessageAck vs Failed.
-  3. 4.5 (Transfer plików): Diagram sekwencji UML (4 aktorów) — Host A ↔ RP2040 A ↔ RP2040 B ↔ Host B (FileExchangeStart z fileKey w AEAD + pętla FileExchangeData w ChaCha20-IETF + TxDone/FileExchangeAck).
-  4. 5.1 (Architektura sprzętowa): Schemat blokowy połączeń — RP2040 ↔ SX1262 (SPI), ILI9341 (SPI), CardKB (I2C), PC (USB CDC / UART).
+
   5. 5.3 (Maszyny stanów): Diagram stanów (stateDiagram-v2) — główne widoki UI (Chat, Contacts, Invite, Identity) oraz stany radia/transferu (Idle / AwaitingAck / SendingFile / ReceivingFile).
   Łącznie wyjdzie Ci 8 konkretnych diagramów na całą pracę — każdy inny, zero powtórek i dokładnie w miejscach, o które pyta komisja na obronie.
 // AI NOTE!!!!!!!!
@@ -451,6 +463,15 @@ Najważniejszą częścią doboru stosu technologicznego w systemach wbudowanych
 • Migracja na mikrokontroler RP2350 (rdzeń Cortex-M33, obsługa ARM TrustZone, sprzętowe akceleratory SHA-256 i bezpieczny rozruch Secure Boot).
 • Dodanie kompresji danych (np. algorytm heatshrink lub miniz) przed szyfrowaniem w celu skrócenia czasu Time-on-Air przy transferze tekstu i plików.
 • Opcjonalny routing wieloskokowy (mesh) dla małej liczby węzłów.
+
+  1. Brak potwierdzeń RF (ARQ) dla transferu plików: TxDone oznacza tylko zakończenie nadawania przez lokalny moduł LoRa i służy wyłącznie do sterowania przepływem USB/UART (FileExchangeAck do Hosta A), a nie potwierdza odbioru przez drugie urządzenie. Zgubiony pakiet Start,
+  Data lub End nie jest retransmitowany.
+  2. Brak uwierzytelnienia (MAC) paczek FileExchangeData: Fragmenty pliku są szyfrowane czystym ChaCha20-IETF bez tagu Poly1305 — przed błędami transmisji chroni wyłącznie 16-bitowe sprzętowe CRC radia LoRa (bez ochrony przed manipulacją danych).
+  3. Nieuwierzytelnione ramki sterujące FileExchangeEnd i FileExchangeCancel: Mają payloadLength = 0 (sam niepodpisany nagłówek 27 B), więc potencjalnie można je sfałszować i przerwać aktywny transfer.
+  4. Słaba entropia klucza sesyjnego pliku (currentFileKey_): Klucz jest wyprowadzany przez hash32 z jawnych danych (deviceId, sequence_) i czasu od uruchomienia (to_us_since_boot), bez sprzętowego CSPRNG (pico_rand).
+  5. Brak timeoutu bezczynności po stronie odbiorcy (RP2040 B): W razie nagłego rozłączenia nadawcy odbiorca pozostaje w stanie Receiving do momentu ręcznego anulowania przez użytkownika.
+  6. Brak zerowania currentFileKey przy FileExchangeEnd na odbiorcy: Po stronie nadawcy (oraz przy FileExchangeCancel po obu stronach) klucz jest czyszczony przez memset, ale w obsłudze FileExchangeEnd na odbiorcy tego brakuje.
+  7. Brak trwałego licznika sequence_ (reset po restarcie): Licznik sequence_ jest trzymany w RAM i po restarcie urządzenia startuje od 0, co przy statycznym współdzielonym sekrecie ECDH stwarza ryzyko powtórzenia nonce między sesjami.
 // AI NOTE!!!!!!!!!!!!
 
 // AI NOTE!!!
@@ -463,6 +484,8 @@ Wskazówki do Bibliografii (co cytować):
 6. Artykuły naukowe z IEEE Xplore dotyczące analizy zasięgu modulacji LoRa (hasła: LoRa path loss models, LoRa CSS performance under noise).
 7. Normy ETSI dotyczące wykorzystania pasm nielicencjonowanych ISM w Europie (Short Range Devices - SRD).
 // AI NOTE!!!
+
+#pagebreak()
 
 == Bibliografia
 
