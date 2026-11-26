@@ -8,6 +8,19 @@
 #include "Packet.hpp"
 #include "board.h"
 
+namespace {
+
+const uint8_t *deriveOptionalKey(const char *password, uint8_t out[lora::FileKeySize])
+{
+    if (password == nullptr || password[0] == '\0') {
+        return nullptr;
+    }
+    lora::Crypto::derivePasswordKey(out, password, std::strlen(password));
+    return out;
+}
+
+} // namespace
+
 RadioSession::RadioSession(NoticeSink notice)
     : notice_(notice)
 {
@@ -120,13 +133,8 @@ void RadioSession::sendTextMessage(const char *text)
 
 void RadioSession::sendInvite(const char *password)
 {
-    uint8_t pairingKey[32];
-    const uint8_t *keyPtr = nullptr;
-    const size_t passwordLen = (password != nullptr) ? std::strlen(password) : 0;
-    if (passwordLen > 0) {
-        lora::Crypto::derivePasswordKey(pairingKey, password, passwordLen);
-        keyPtr = pairingKey;
-    }
+    uint8_t pairingKey[lora::FileKeySize];
+    const uint8_t *keyPtr = deriveOptionalKey(password, pairingKey);
 
     lora::PacketBuffer packet;
     if (!lora::Packet::encodeInvite(contacts_.identity(),
@@ -144,13 +152,8 @@ void RadioSession::sendInvite(const char *password)
 
 void RadioSession::acceptPendingInvite(const char *password)
 {
-    uint8_t pairingKey[32];
-    const uint8_t *keyPtr = nullptr;
-    const size_t passwordLen = (password != nullptr) ? std::strlen(password) : 0;
-    if (passwordLen > 0) {
-        lora::Crypto::derivePasswordKey(pairingKey, password, passwordLen);
-        keyPtr = pairingKey;
-    }
+    uint8_t pairingKey[lora::FileKeySize];
+    const uint8_t *keyPtr = deriveOptionalKey(password, pairingKey);
 
     if (hasPendingEncryptedInvite_) {
         if (keyPtr == nullptr) {
@@ -225,8 +228,7 @@ void RadioSession::setNickname(const char *nickname)
         notice_.emit("Nickname missing", ui::Tone::Danger);
         return;
     }
-    std::memset(contacts_.identity().nickname, 0, lora::NicknameSize);
-    std::strncpy(contacts_.identity().nickname, nickname, lora::NicknameSize - 1);
+    std::snprintf(contacts_.identity().nickname, lora::NicknameSize, "%s", nickname);
     contacts_.save();
     dirty_ = true;
     notice_.emit("Nickname saved", ui::Tone::Success);

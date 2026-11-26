@@ -8,6 +8,12 @@
 
 namespace {
 
+template <size_t N>
+void copyText(char (&dst)[N], const char *src)
+{
+    std::snprintf(dst, N, "%s", (src != nullptr) ? src : "");
+}
+
 size_t wrapText(const char *text, char segs[][40], size_t maxSegs, size_t maxLen)
 {
     if (text == nullptr || segs == nullptr || maxSegs == 0 || maxLen == 0) {
@@ -104,8 +110,7 @@ void UiController::setNotice(const char *message, ui::Tone tone)
     if (message == nullptr) {
         return;
     }
-    std::memset(notice_, 0, sizeof(notice_));
-    std::strncpy(notice_, message, sizeof(notice_) - 1);
+    copyText(notice_, message);
     statusBar_.setTone(tone);
     statusBar_.setText(notice_);
     invalidate();
@@ -179,7 +184,10 @@ void UiController::render(const RadioSession &radio, const FileTransfer &fileTra
 void UiController::setPage(Page page)
 {
     page_ = page;
-    uiPage_.setFocusedIndex(focusIndexForAction(FocusAction::None));
+    const ui::Component *initialFocus = &inputBox_;
+    if (page == Page::Contacts) initialFocus = &selectButton_;
+    else if (page == Page::Invite) initialFocus = &broadcastButton_;
+    uiPage_.focusComponent(initialFocus);
     requestFullRedraw();
 }
 
@@ -246,11 +254,11 @@ void UiController::prepareFilePopup(const FileTransfer &fileTransfer)
 
 void UiController::prepareChatPage(const RadioSession &radio)
 {
-    std::strncpy(pageTitle_, "Messages", sizeof(pageTitle_) - 1);
+    copyText(pageTitle_, "Messages");
     const lora::Contact *contact = radio.selectedContact();
     if (contact == nullptr) {
-        std::strncpy(contactLine_, "No contact selected", sizeof(contactLine_) - 1);
-        std::strncpy(contactMeta_, "Use Invite to pair a device", sizeof(contactMeta_) - 1);
+        copyText(contactLine_, "No contact selected");
+        copyText(contactMeta_, "Use Invite to pair a device");
     } else {
         char fingerprint[20];
         formatFingerprint(contact->fingerprint, fingerprint, sizeof(fingerprint));
@@ -292,23 +300,22 @@ void UiController::prepareChatPage(const RadioSession &radio)
 
 void UiController::prepareContactsPage(const RadioSession &radio)
 {
-    std::strncpy(pageTitle_, "Contacts", sizeof(pageTitle_) - 1);
+    copyText(pageTitle_, "Contacts");
     pageTitleLabel_.setText(pageTitle_);
 
     const size_t selectedIdx = radio.selectedContactIndex();
-    const size_t firstVisible = selectedIdx >= 4 ? selectedIdx - 3 : 0;
-    for (size_t i = 0; i < 4; i++) {
+    const size_t firstVisible = selectedIdx >= VisibleContacts ? selectedIdx - (VisibleContacts - 1) : 0;
+    for (size_t i = 0; i < VisibleContacts; i++) {
         const size_t contactIndex = firstVisible + i;
         const lora::Contact *contact = radio.contacts().contactAt(contactIndex);
-        std::memset(contactPrimary_[i], 0, sizeof(contactPrimary_[i]));
-        std::memset(contactSecondary_[i], 0, sizeof(contactSecondary_[i]));
         if (contact == nullptr) {
-            std::strncpy(contactPrimary_[i], "-", sizeof(contactPrimary_[i]) - 1);
+            copyText(contactPrimary_[i], "-");
+            contactSecondary_[i][0] = '\0';
         } else {
             char fingerprint[20];
             formatFingerprint(contact->fingerprint, fingerprint, sizeof(fingerprint));
-            std::snprintf(contactPrimary_[i], sizeof(contactPrimary_[i]), "%s", contact->nickname);
-            std::snprintf(contactSecondary_[i], sizeof(contactSecondary_[i]), "%s", fingerprint);
+            copyText(contactPrimary_[i], contact->nickname);
+            copyText(contactSecondary_[i], fingerprint);
         }
         contactItems_[i].setContent(contactPrimary_[i], contactSecondary_[i], contactIndex == selectedIdx);
     }
@@ -331,7 +338,7 @@ void UiController::prepareContactsPage(const RadioSession &radio)
 
 void UiController::prepareInvitePage(const RadioSession &radio)
 {
-    std::strncpy(pageTitle_, "Invite (Password Pair)", sizeof(pageTitle_) - 1);
+    copyText(pageTitle_, "Invite (Password Pair)");
     pageTitleLabel_.setText(pageTitle_);
 
     if (radio.hasPendingInvite()) {
@@ -341,12 +348,12 @@ void UiController::prepareInvitePage(const RadioSession &radio)
         std::snprintf(inviteMeta_, sizeof(inviteMeta_), "Fingerprint: %s", fingerprint);
         primaryLabel_.setTone(ui::Tone::Focus);
     } else if (radio.hasPendingEncryptedInvite()) {
-        std::strncpy(inviteLine_, "Pending: [Encrypted Invite]", sizeof(inviteLine_) - 1);
-        std::strncpy(inviteMeta_, "Enter password below & press Accept", sizeof(inviteMeta_) - 1);
+        copyText(inviteLine_, "Pending: [Encrypted Invite]");
+        copyText(inviteMeta_, "Enter password below & press Accept");
         primaryLabel_.setTone(ui::Tone::Accent);
     } else {
-        std::strncpy(inviteLine_, "No pending invite", sizeof(inviteLine_) - 1);
-        std::strncpy(inviteMeta_, "Enter password to broadcast/accept", sizeof(inviteMeta_) - 1);
+        copyText(inviteLine_, "No pending invite");
+        copyText(inviteMeta_, "Enter password to broadcast/accept");
         primaryLabel_.setTone(ui::Tone::Muted);
     }
     primaryLabel_.setText(inviteLine_);
@@ -452,11 +459,11 @@ void UiController::rebuildHistoryRows(const RadioSession &radio)
         }
 
         char segs[4][40]{};
-        const size_t segCount = wrapText(fullText, segs, 4, 36);
+        const size_t segCount = wrapText(fullText, segs, 4, WrapColumnWidth);
 
         // Fill visual lines from bottom to top so the newest message stays anchored at the bottom.
         for (int s = static_cast<int>(segCount) - 1; s >= 0 && currentVisualRow >= 0; s--) {
-            std::strncpy(lines[currentVisualRow].text, segs[s], sizeof(lines[currentVisualRow].text) - 1);
+            copyText(lines[currentVisualRow].text, segs[s]);
             lines[currentVisualRow].tone = tone;
             lines[currentVisualRow].statusColor = (s == static_cast<int>(segCount) - 1) ? statusColor : 0;
             currentVisualRow--;
@@ -464,8 +471,7 @@ void UiController::rebuildHistoryRows(const RadioSession &radio)
     }
 
     for (size_t i = 0; i < VisibleHistoryRows; i++) {
-        std::memset(historyRows_[i], 0, sizeof(historyRows_[i]));
-        std::strncpy(historyRows_[i], lines[i].text, sizeof(historyRows_[i]) - 1);
+        copyText(historyRows_[i], lines[i].text);
         historyLabels_[i].setTone(lines[i].tone);
         historyLabels_[i].setText(historyRows_[i]);
         historyLabels_[i].setStatusColor(lines[i].statusColor);
@@ -479,15 +485,15 @@ void UiController::updateFileProgress(uint32_t current, uint32_t total)
         percent = 100;
     }
 
-    char bar[24]{};
+    char bar[ProgressBarWidth + 4]{};
     bar[0] = '[';
-    const int filled = (percent * 20) / 100;
-    for (int i = 0; i < 20; i++) {
+    const int filled = (percent * ProgressBarWidth) / 100;
+    for (int i = 0; i < ProgressBarWidth; i++) {
         bar[1 + i] = (i < filled) ? '=' : ' ';
     }
-    bar[21] = ']';
-    bar[22] = '\0';
-    std::strcpy(fileProgressBarText_, bar);
+    bar[ProgressBarWidth + 1] = ']';
+    bar[ProgressBarWidth + 2] = '\0';
+    copyText(fileProgressBarText_, bar);
     fileProgressBarLabel_.setText(fileProgressBarText_);
 
     std::snprintf(fileProgressStats_, sizeof(fileProgressStats_), "%d%% (%lu / %lu B)",
@@ -543,7 +549,7 @@ bool UiController::handleKeyEvent(ui::KeyEvent event,
                 return true;
             }
         }
-        return activateFocusAction(actionForFocusedComponent(), radio, outCommand);
+        return activateFocused(radio, outCommand);
     }
 
     uiPage_.handle(event);
@@ -560,12 +566,62 @@ bool UiController::handleKeyEvent(ui::KeyEvent event,
     return false;
 }
 
-bool UiController::activateFocusAction(FocusAction action,
-                                       const RadioSession &radio,
-                                       UiCommand &outCommand)
+bool UiController::activateFocused(const RadioSession &radio, UiCommand &outCommand)
 {
-    switch (action) {
-    case FocusAction::Send:
+    const ui::Component *focused = uiPage_.focusedComponent();
+    if (focused == nullptr) {
+        return false;
+    }
+
+    if (focused == &backButton_ || focused == &selectButton_) {
+        setPage(Page::Chat);
+        return false;
+    }
+    if (focused == &contactsButton_) {
+        setPage(Page::Contacts);
+        return false;
+    }
+    if (focused == &inviteButton_) {
+        setPage(Page::Invite);
+        return false;
+    }
+    if (focused == &identityButton_) {
+        setPage(Page::Identity);
+        return false;
+    }
+    if (focused == &nextButton_) {
+        outCommand.type = UiCommand::Type::NextContact;
+        return true;
+    }
+    if (focused == &broadcastButton_) {
+        return emitTextCommand(UiCommand::Type::SendInvite, input_, false, outCommand);
+    }
+    if (focused == &acceptButton_) {
+        return emitTextCommand(UiCommand::Type::AcceptInvite, input_, true, outCommand);
+    }
+    if (focused == &setNickButton_) {
+        return emitTextCommand(UiCommand::Type::SetNickname, input_, true, outCommand);
+    }
+    if (focused == &seedButton_) {
+        return emitTextCommand(UiCommand::Type::ProvisionSeed, input_, true, outCommand);
+    }
+
+    if (page_ == Page::Contacts) {
+        for (const auto &item : contactItems_) {
+            if (focused == &item) {
+                setPage(Page::Chat);
+                return false;
+            }
+        }
+    }
+
+    if (page_ == Page::Identity && focused == &inputBox_) {
+        const auto type = (inputLength_ == 64) ? UiCommand::Type::ProvisionSeed
+                                               : UiCommand::Type::SetNickname;
+        return emitTextCommand(type, input_, true, outCommand);
+    }
+
+    if (page_ == Page::Chat && (focused == &inputBox_ || focused == &sendButton_)) {
         if (inputLength_ == 0 || radio.radio().isBusy()) {
             return false;
         }
@@ -574,173 +630,46 @@ bool UiController::activateFocusAction(FocusAction action,
             clearInput();
             return emitted;
         }
-        std::strncpy(commandText_, input_, sizeof(commandText_) - 1);
-        commandText_[sizeof(commandText_) - 1] = '\0';
-        clearInput();
-        outCommand.type = UiCommand::Type::SendText;
-        outCommand.text = commandText_;
-        return true;
-
-    case FocusAction::OpenContacts:
-        setPage(Page::Contacts);
-        return false;
-    case FocusAction::OpenInvite:
-        setPage(Page::Invite);
-        return false;
-    case FocusAction::OpenIdentity:
-        setPage(Page::Identity);
-        return false;
-    case FocusAction::SelectContact:
-    case FocusAction::BackToChat:
-        setPage(Page::Chat);
-        return false;
-    case FocusAction::NextContact:
-        outCommand.type = UiCommand::Type::NextContact;
-        return true;
-
-    case FocusAction::BroadcastInvite:
-        std::strncpy(commandText_, input_, sizeof(commandText_) - 1);
-        commandText_[sizeof(commandText_) - 1] = '\0';
-        outCommand.type = UiCommand::Type::SendInvite;
-        outCommand.text = commandText_;
-        return true;
-
-    case FocusAction::AcceptInvite:
-        std::strncpy(commandText_, input_, sizeof(commandText_) - 1);
-        commandText_[sizeof(commandText_) - 1] = '\0';
-        clearInput();
-        outCommand.type = UiCommand::Type::AcceptInvite;
-        outCommand.text = commandText_;
-        return true;
-
-    case FocusAction::SetNickname:
-        std::strncpy(commandText_, input_, sizeof(commandText_) - 1);
-        commandText_[sizeof(commandText_) - 1] = '\0';
-        clearInput();
-        outCommand.type = UiCommand::Type::SetNickname;
-        outCommand.text = commandText_;
-        return true;
-
-    case FocusAction::ProvisionSeed:
-        std::strncpy(commandText_, input_, sizeof(commandText_) - 1);
-        commandText_[sizeof(commandText_) - 1] = '\0';
-        clearInput();
-        outCommand.type = UiCommand::Type::ProvisionSeed;
-        outCommand.text = commandText_;
-        return true;
-
-    case FocusAction::None:
-        return false;
+        return emitTextCommand(UiCommand::Type::SendText, input_, true, outCommand);
     }
+
     return false;
 }
 
 bool UiController::parseSlashCommand(UiCommand &outCommand)
 {
     if (std::strcmp(input_, "/i") == 0) {
-        outCommand.type = UiCommand::Type::SendInvite;
-        outCommand.text = "";
-        return true;
+        return emitTextCommand(UiCommand::Type::SendInvite, "", false, outCommand);
     }
     if (std::strcmp(input_, "/a") == 0) {
-        outCommand.type = UiCommand::Type::AcceptInvite;
-        outCommand.text = "";
-        return true;
+        return emitTextCommand(UiCommand::Type::AcceptInvite, "", false, outCommand);
     }
     if (std::strcmp(input_, "/c") == 0) {
         outCommand.type = UiCommand::Type::NextContact;
         return true;
     }
     if (std::strncmp(input_, "/n ", 3) == 0) {
-        std::strncpy(commandText_, input_ + 3, sizeof(commandText_) - 1);
-        commandText_[sizeof(commandText_) - 1] = '\0';
-        outCommand.type = UiCommand::Type::SetNickname;
-        outCommand.text = commandText_;
-        return true;
+        return emitTextCommand(UiCommand::Type::SetNickname, input_ + 3, false, outCommand);
     }
     if (std::strncmp(input_, "/seed ", 6) == 0) {
-        std::strncpy(commandText_, input_ + 6, sizeof(commandText_) - 1);
-        commandText_[sizeof(commandText_) - 1] = '\0';
-        outCommand.type = UiCommand::Type::ProvisionSeed;
-        outCommand.text = commandText_;
-        return true;
+        return emitTextCommand(UiCommand::Type::ProvisionSeed, input_ + 6, false, outCommand);
     }
     setNotice("Unknown command", ui::Tone::Danger);
     return false;
 }
 
-UiController::FocusAction UiController::actionForFocusedComponent() const
+bool UiController::emitTextCommand(UiCommand::Type type,
+                                   const char *source,
+                                   bool clear,
+                                   UiCommand &outCommand)
 {
-    const ui::Component *focused = uiPage_.focusedComponent();
-    if (focused == nullptr) {
-        return FocusAction::None;
+    copyText(commandText_, source);
+    if (clear) {
+        clearInput();
     }
-
-    switch (page_) {
-    case Page::Chat:
-        if (focused == &inputBox_ || focused == &sendButton_) return FocusAction::Send;
-        if (focused == &contactsButton_) return FocusAction::OpenContacts;
-        if (focused == &inviteButton_) return FocusAction::OpenInvite;
-        if (focused == &identityButton_) return FocusAction::OpenIdentity;
-        break;
-
-    case Page::Contacts:
-        for (size_t i = 0; i < 4; i++) {
-            if (focused == &contactItems_[i]) return FocusAction::SelectContact;
-        }
-        if (focused == &selectButton_) return FocusAction::SelectContact;
-        if (focused == &nextButton_) return FocusAction::NextContact;
-        if (focused == &backButton_) return FocusAction::BackToChat;
-        break;
-
-    case Page::Invite:
-        if (focused == &broadcastButton_) return FocusAction::BroadcastInvite;
-        if (focused == &acceptButton_) return FocusAction::AcceptInvite;
-        if (focused == &backButton_) return FocusAction::BackToChat;
-        break;
-
-    case Page::Identity:
-        if (focused == &inputBox_) {
-            return inputLength_ == 64 ? FocusAction::ProvisionSeed : FocusAction::SetNickname;
-        }
-        if (focused == &setNickButton_) return FocusAction::SetNickname;
-        if (focused == &seedButton_) return FocusAction::ProvisionSeed;
-        if (focused == &backButton_) return FocusAction::BackToChat;
-        break;
-    }
-    return FocusAction::None;
-}
-
-size_t UiController::focusIndexForAction(FocusAction action)
-{
-    const ui::Component *target = nullptr;
-    switch (page_) {
-    case Page::Chat:
-        if (action == FocusAction::OpenContacts) target = &contactsButton_;
-        else if (action == FocusAction::OpenInvite) target = &inviteButton_;
-        else if (action == FocusAction::OpenIdentity) target = &identityButton_;
-        else target = &inputBox_;
-        break;
-    case Page::Contacts:
-        if (action == FocusAction::NextContact) target = &nextButton_;
-        else if (action == FocusAction::BackToChat) target = &backButton_;
-        else target = &selectButton_;
-        break;
-    case Page::Invite:
-        if (action == FocusAction::AcceptInvite) target = &acceptButton_;
-        else if (action == FocusAction::BackToChat) target = &backButton_;
-        else target = &broadcastButton_;
-        break;
-    case Page::Identity:
-        if (action == FocusAction::BackToChat) target = &backButton_;
-        else target = &inputBox_;
-        break;
-    }
-
-    if (target != nullptr) {
-        uiPage_.focusComponent(target);
-    }
-    return uiPage_.focusedIndex();
+    outCommand.type = type;
+    outCommand.text = commandText_;
+    return true;
 }
 
 void UiController::formatFingerprint(const uint8_t fingerprint[lora::FingerprintSize],

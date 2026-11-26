@@ -65,8 +65,6 @@ private:
                                 const uint8_t ownSecretKey[SecretKeySize],
                                 const uint8_t ownPublicKey[PublicKeySize],
                                 const uint8_t peerPublicKey[PublicKeySize]);
-
-    static size_t inviteMessage(uint8_t *out, const Contact &contact, PacketType type);
 };
 
 } // namespace lora

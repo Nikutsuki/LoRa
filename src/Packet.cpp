@@ -25,16 +25,18 @@ struct __attribute__((packed)) WireInvite {
     uint8_t signature[SignatureSize];
 };
 
-struct __attribute__((packed)) WireAeadHeader {
+struct __attribute__((packed)) WireAead {
     uint8_t nonce[NonceSize];
     uint8_t mac[MacSize];
+    uint8_t cipherText[];
 };
 
-struct __attribute__((packed)) WireMessageHeader {
+struct __attribute__((packed)) WireMessage {
     char nickname[NicknameSize];
     uint8_t fingerprint[FingerprintSize];
     uint8_t nonce[NonceSize];
     uint8_t mac[MacSize];
+    uint8_t cipherText[];
 };
 
 struct __attribute__((packed)) WireFileStart {
@@ -44,16 +46,54 @@ struct __attribute__((packed)) WireFileStart {
     char filename[MaxFilenameSize];
 };
 
-struct __attribute__((packed)) WireFileDataHeader {
+struct __attribute__((packed)) WireFileData {
     uint32_t chunkIndex;
+    uint8_t data[];
+};
+
+template <typename Payload>
+struct __attribute__((packed)) WireFrame {
+    WireHeader header;
+    Payload payload;
 };
 
 constexpr size_t HeaderSize = sizeof(WireHeader);
 constexpr size_t InvitePayloadSize = sizeof(WireInvite);
-constexpr size_t EncryptedFixedPayloadSize = sizeof(WireMessageHeader);
+constexpr size_t EncryptedFixedPayloadSize = sizeof(WireMessage);
 constexpr size_t FileStartFixedSize = offsetof(WireFileStart, filename);
 
 static_assert(HeaderSize == 27, "WireHeader layout mismatch");
+
+template <size_t N>
+void copyBytes(uint8_t (&dst)[N], const uint8_t *src)
+{
+    std::memcpy(dst, src, N);
+}
+
+void initHeader(WireHeader &wire,
+                uint32_t magic,
+                uint8_t version,
+                PacketType type,
+                const PacketRoute &route,
+                size_t payloadLength)
+{
+    wire.magic = magic;
+    wire.version = version;
+    wire.type = static_cast<uint8_t>(type);
+    copyBytes(wire.senderDeviceId, route.senderDeviceId);
+    copyBytes(wire.recipientDeviceId, route.recipientDeviceId);
+    wire.sequence = route.sequence;
+    wire.payloadLength = static_cast<uint8_t>(payloadLength);
+}
+
+WireHeader wireFromDecoded(const PacketHeader &header, uint32_t magic, uint8_t version)
+{
+    WireHeader wire{};
+    initHeader(wire, magic, version, header.type,
+               PacketRoute::toDevice(header.senderDeviceId, header.recipientDeviceId, header.sequence),
+               header.payloadLength);
+    return wire;
+}
 
 } // namespace
 
@@ -66,37 +106,33 @@ bool Packet::encodeInvite(const DeviceIdentity &identity,
     }
 
     const bool encrypted = (params.pairingKey != nullptr);
-    const size_t totalPayloadSize = encrypted
-                                        ? (sizeof(WireAeadHeader) + InvitePayloadSize)
-                                        : InvitePayloadSize;
-    if (out.capacity() < HeaderSize + totalPayloadSize || totalPayloadSize > MaxPacketSize) {
+    const size_t payloadLength = encrypted ? (sizeof(WireAead) + InvitePayloadSize) : InvitePayloadSize;
+    if (out.capacity() < HeaderSize + payloadLength || payloadLength > MaxPacketSize) {
         return false;
     }
 
-    const PacketRoute route = PacketRoute::toDevice(identity.deviceId, params.recipientDeviceId, params.sequence);
-    const PacketHeader header = makeHeader(params.type, route, static_cast<uint8_t>(totalPayloadSize));
-    writeHeader(header, out.data);
+    const auto route = PacketRoute::toDevice(identity.deviceId, params.recipientDeviceId, params.sequence);
 
-    WireInvite rawInvite{};
-    std::strncpy(rawInvite.nickname, identity.nickname, NicknameSize - 1);
-    std::memcpy(rawInvite.signingPublicKey, identity.signingPublicKey, PublicKeySize);
-    std::memcpy(rawInvite.boxPublicKey, identity.boxPublicKey, PublicKeySize);
-    Crypto::signInvite(identity, params.type, rawInvite.signature);
+    WireInvite invite{};
+    std::strncpy(invite.nickname, identity.nickname, NicknameSize - 1);
+    copyBytes(invite.signingPublicKey, identity.signingPublicKey);
+    copyBytes(invite.boxPublicKey, identity.boxPublicKey);
+    Crypto::signInvite(identity, params.type, invite.signature);
 
-    uint8_t *payload = out.data + HeaderSize;
     if (encrypted) {
-        WireAeadHeader aead{};
-        Crypto::makeNonce(aead.nonce, identity.deviceId, params.recipientDeviceId, params.sequence);
-        uint8_t *cipherText = payload + sizeof(WireAeadHeader);
-        crypto_aead_lock(cipherText, aead.mac, params.pairingKey, aead.nonce,
-                         out.data, HeaderSize,
-                         reinterpret_cast<const uint8_t *>(&rawInvite), InvitePayloadSize);
-        std::memcpy(payload, &aead, sizeof(aead));
+        auto *frame = reinterpret_cast<WireFrame<WireAead> *>(out.data);
+        initHeader(frame->header, Magic, Version, params.type, route, payloadLength);
+        Crypto::makeNonce(frame->payload.nonce, identity.deviceId, params.recipientDeviceId, params.sequence);
+        crypto_aead_lock(frame->payload.cipherText, frame->payload.mac, params.pairingKey,
+                         frame->payload.nonce, reinterpret_cast<const uint8_t *>(&frame->header), HeaderSize,
+                         reinterpret_cast<const uint8_t *>(&invite), InvitePayloadSize);
     } else {
-        std::memcpy(payload, &rawInvite, InvitePayloadSize);
+        auto *frame = reinterpret_cast<WireFrame<WireInvite> *>(out.data);
+        initHeader(frame->header, Magic, Version, params.type, route, payloadLength);
+        frame->payload = invite;
     }
 
-    out.length = HeaderSize + totalPayloadSize;
+    out.length = HeaderSize + payloadLength;
     return true;
 }
 
@@ -115,29 +151,25 @@ bool Packet::encodeMessage(const PeerSession &peer,
         return false;
     }
 
-    const PacketRoute route = PacketRoute::toContact(peer.local, peer.remote, sequence);
-    const PacketHeader header = makeHeader(PacketType::EncryptedMessage, route, static_cast<uint8_t>(payloadLength));
-    writeHeader(header, out.data);
+    auto *frame = reinterpret_cast<WireFrame<WireMessage> *>(out.data);
+    initHeader(frame->header, Magic, Version, PacketType::EncryptedMessage,
+               PacketRoute::toContact(peer.local, peer.remote, sequence), payloadLength);
 
-    WireMessageHeader msgHeader{};
-    std::strncpy(msgHeader.nickname, peer.local.nickname, NicknameSize - 1);
-    std::memcpy(msgHeader.fingerprint, peer.local.fingerprint, FingerprintSize);
-    Crypto::makeNonce(msgHeader.nonce, peer.local.deviceId, peer.remote.deviceId, sequence);
-
-    uint8_t *payload = out.data + HeaderSize;
-    std::memcpy(payload, &msgHeader, sizeof(msgHeader));
+    std::memset(frame->payload.nickname, 0, NicknameSize);
+    std::strncpy(frame->payload.nickname, peer.local.nickname, NicknameSize - 1);
+    copyBytes(frame->payload.fingerprint, peer.local.fingerprint);
+    Crypto::makeNonce(frame->payload.nonce, peer.local.deviceId, peer.remote.deviceId, sequence);
 
     // AAD covers the wire header plus nickname, fingerprint, and nonce.
-    constexpr size_t PrefixLength = HeaderSize + offsetof(WireMessageHeader, mac);
-    uint8_t *cipherText = payload + sizeof(msgHeader);
+    constexpr size_t PrefixLength = HeaderSize + offsetof(WireMessage, mac);
     uint8_t mac[MacSize];
-    if (!Crypto::encryptForContact(peer, {msgHeader.nonce, out.data, PrefixLength},
+    if (!Crypto::encryptForContact(peer, {frame->payload.nonce, out.data, PrefixLength},
                                    reinterpret_cast<const uint8_t *>(message), plainLength,
-                                   cipherText, mac)) {
+                                   frame->payload.cipherText, mac)) {
         return false;
     }
 
-    std::memcpy(payload + offsetof(WireMessageHeader, mac), mac, MacSize);
+    copyBytes(frame->payload.mac, mac);
     out.length = HeaderSize + payloadLength;
     return true;
 }
@@ -150,7 +182,8 @@ bool Packet::encodeControl(PacketType type,
         return false;
     }
 
-    writeHeader(makeHeader(type, route, 0), out.data);
+    auto *header = reinterpret_cast<WireHeader *>(out.data);
+    initHeader(*header, Magic, Version, type, route, 0);
     out.length = HeaderSize;
     return true;
 }
@@ -166,32 +199,30 @@ bool Packet::encodeFileStart(const PeerSession &peer,
     }
 
     WireFileStart plain{};
-    std::memcpy(plain.fileKey, info.fileKey, FileKeySize);
+    copyBytes(plain.fileKey, info.fileKey);
     plain.fileSize = info.fileSize;
     plain.nameLength = static_cast<uint8_t>(nameLen);
     std::memcpy(plain.filename, info.filename, nameLen);
 
     const size_t plainLen = FileStartFixedSize + nameLen;
-    const size_t payloadLength = sizeof(WireAeadHeader) + plainLen;
+    const size_t payloadLength = sizeof(WireAead) + plainLen;
     if (out.capacity() < HeaderSize + payloadLength || payloadLength > MaxPacketSize) {
         return false;
     }
 
-    const PacketRoute route = PacketRoute::toContact(peer.local, peer.remote, sequence);
-    writeHeader(makeHeader(PacketType::FileExchangeStart, route, static_cast<uint8_t>(payloadLength)), out.data);
+    auto *frame = reinterpret_cast<WireFrame<WireAead> *>(out.data);
+    initHeader(frame->header, Magic, Version, PacketType::FileExchangeStart,
+               PacketRoute::toContact(peer.local, peer.remote, sequence), payloadLength);
+    Crypto::makeNonce(frame->payload.nonce, peer.local.deviceId, peer.remote.deviceId, sequence);
 
-    WireAeadHeader aead{};
-    Crypto::makeNonce(aead.nonce, peer.local.deviceId, peer.remote.deviceId, sequence);
-
-    uint8_t *payload = out.data + HeaderSize;
-    uint8_t *cipherText = payload + sizeof(WireAeadHeader);
-    if (!Crypto::encryptForContact(peer, {aead.nonce, out.data, HeaderSize},
+    uint8_t mac[MacSize];
+    if (!Crypto::encryptForContact(peer, {frame->payload.nonce, out.data, HeaderSize},
                                    reinterpret_cast<const uint8_t *>(&plain), plainLen,
-                                   cipherText, aead.mac)) {
+                                   frame->payload.cipherText, mac)) {
         return false;
     }
 
-    std::memcpy(payload, &aead, sizeof(aead));
+    copyBytes(frame->payload.mac, mac);
     out.length = HeaderSize + payloadLength;
     return true;
 }
@@ -200,17 +231,15 @@ bool Packet::encodeFileData(const PacketRoute &route,
                             const FileChunkView &chunk,
                             PacketBuffer &out)
 {
-    const size_t payloadLength = sizeof(WireFileDataHeader) + chunk.length;
+    const size_t payloadLength = sizeof(WireFileData) + chunk.length;
     if (out.capacity() < HeaderSize + payloadLength || payloadLength > MaxPacketSize || chunk.data == nullptr) {
         return false;
     }
 
-    writeHeader(makeHeader(PacketType::FileExchangeData, route, static_cast<uint8_t>(payloadLength)), out.data);
-
-    const WireFileDataHeader dataHeader{chunk.chunkIndex};
-    uint8_t *payload = out.data + HeaderSize;
-    std::memcpy(payload, &dataHeader, sizeof(dataHeader));
-    std::memcpy(payload + sizeof(dataHeader), chunk.data, chunk.length);
+    auto *frame = reinterpret_cast<WireFrame<WireFileData> *>(out.data);
+    initHeader(frame->header, Magic, Version, PacketType::FileExchangeData, route, payloadLength);
+    frame->payload.chunkIndex = chunk.chunkIndex;
+    std::memcpy(frame->payload.data, chunk.data, chunk.length);
 
     out.length = HeaderSize + payloadLength;
     return true;
@@ -221,14 +250,26 @@ bool Packet::decode(const uint8_t *data, size_t length, DecodedPacket &decoded)
     if (data == nullptr || length < HeaderSize) {
         return false;
     }
-    if (!readHeader(data, length, decoded.header)) {
+
+    const auto *wire = reinterpret_cast<const WireHeader *>(data);
+    if (wire->magic != Magic || wire->version != Version) {
         return false;
     }
-    if (HeaderSize + decoded.header.payloadLength != length) {
+    if (wire->type < static_cast<uint8_t>(PacketType::InviteBroadcast) ||
+        wire->type > static_cast<uint8_t>(PacketType::FileExchangeCancel)) {
         return false;
     }
+    if (HeaderSize + wire->payloadLength != length) {
+        return false;
+    }
+
+    decoded.header.type = static_cast<PacketType>(wire->type);
+    copyBytes(decoded.header.senderDeviceId, wire->senderDeviceId);
+    copyBytes(decoded.header.recipientDeviceId, wire->recipientDeviceId);
+    decoded.header.sequence = wire->sequence;
+    decoded.header.payloadLength = wire->payloadLength;
     decoded.payload = data + HeaderSize;
-    decoded.payloadLength = decoded.header.payloadLength;
+    decoded.payloadLength = wire->payloadLength;
     return true;
 }
 
@@ -238,38 +279,32 @@ bool Packet::decodeInvite(const DecodedPacket &packet, const uint8_t *pairingKey
         return false;
     }
 
-    WireInvite rawInvite{};
-
-    if (packet.payloadLength == sizeof(WireAeadHeader) + InvitePayloadSize) {
+    WireInvite invite{};
+    if (packet.payloadLength == sizeof(WireAead) + InvitePayloadSize) {
         if (pairingKey == nullptr) {
             return false;
         }
-
-        WireAeadHeader aead{};
-        std::memcpy(&aead, packet.payload, sizeof(aead));
-        const uint8_t *cipherText = packet.payload + sizeof(aead);
-
-        uint8_t ad[HeaderSize];
-        writeHeader(packet.header, ad);
-
-        if (crypto_aead_unlock(reinterpret_cast<uint8_t *>(&rawInvite), aead.mac, pairingKey, aead.nonce,
-                               ad, HeaderSize, cipherText, InvitePayloadSize) != 0) {
+        const auto *aead = reinterpret_cast<const WireAead *>(packet.payload);
+        const WireHeader ad = wireFromDecoded(packet.header, Magic, Version);
+        if (crypto_aead_unlock(reinterpret_cast<uint8_t *>(&invite), aead->mac, pairingKey, aead->nonce,
+                               reinterpret_cast<const uint8_t *>(&ad), sizeof(ad),
+                               aead->cipherText, InvitePayloadSize) != 0) {
             return false;
         }
     } else if (packet.payloadLength == InvitePayloadSize) {
-        std::memcpy(&rawInvite, packet.payload, InvitePayloadSize);
+        invite = *reinterpret_cast<const WireInvite *>(packet.payload);
     } else {
         return false;
     }
 
     contact = Contact{};
     contact.valid = true;
-    std::memcpy(contact.deviceId, packet.header.senderDeviceId, DeviceIdSize);
-    std::strncpy(contact.nickname, rawInvite.nickname, NicknameSize - 1);
-    std::memcpy(contact.signingPublicKey, rawInvite.signingPublicKey, PublicKeySize);
-    std::memcpy(contact.boxPublicKey, rawInvite.boxPublicKey, PublicKeySize);
+    copyBytes(contact.deviceId, packet.header.senderDeviceId);
+    std::strncpy(contact.nickname, invite.nickname, NicknameSize - 1);
+    copyBytes(contact.signingPublicKey, invite.signingPublicKey);
+    copyBytes(contact.boxPublicKey, invite.boxPublicKey);
     Crypto::fingerprint(contact.fingerprint, contact.deviceId, contact.signingPublicKey, contact.boxPublicKey);
-    return Crypto::verifyInvite(contact, packet.header.type, rawInvite.signature);
+    return Crypto::verifyInvite(contact, packet.header.type, invite.signature);
 }
 
 bool Packet::decodeMessage(const PeerSession &peer,
@@ -288,21 +323,19 @@ bool Packet::decodeMessage(const PeerSession &peer,
         return false;
     }
 
-    WireMessageHeader msgHeader{};
-    std::memcpy(&msgHeader, packet.payload, sizeof(msgHeader));
-
-    if (std::memcmp(msgHeader.fingerprint, peer.remote.fingerprint, FingerprintSize) != 0) {
+    const auto *msg = reinterpret_cast<const WireMessage *>(packet.payload);
+    if (std::memcmp(msg->fingerprint, peer.remote.fingerprint, FingerprintSize) != 0) {
         return false;
     }
 
-    constexpr size_t PrefixLength = HeaderSize + offsetof(WireMessageHeader, mac);
+    constexpr size_t PrefixLength = HeaderSize + offsetof(WireMessage, mac);
     uint8_t ad[PrefixLength];
-    writeHeader(packet.header, ad);
-    std::memcpy(ad + HeaderSize, packet.payload, offsetof(WireMessageHeader, mac));
+    const WireHeader wireHeader = wireFromDecoded(packet.header, Magic, Version);
+    std::memcpy(ad, &wireHeader, HeaderSize);
+    std::memcpy(ad + HeaderSize, packet.payload, offsetof(WireMessage, mac));
 
-    const uint8_t *cipherText = packet.payload + sizeof(msgHeader);
-    if (!Crypto::decryptFromContact(peer, {msgHeader.nonce, ad, PrefixLength},
-                                    cipherText, cipherLength, msgHeader.mac,
+    if (!Crypto::decryptFromContact(peer, {msg->nonce, ad, PrefixLength},
+                                    msg->cipherText, cipherLength, msg->mac,
                                     reinterpret_cast<uint8_t *>(outMessage))) {
         return false;
     }
@@ -314,27 +347,23 @@ bool Packet::decodeFileStart(const PeerSession &peer,
                              const DecodedPacket &packet,
                              FileStartInfo &outInfo)
 {
-    if (packet.payloadLength < sizeof(WireAeadHeader) + FileStartFixedSize) {
+    if (packet.payloadLength < sizeof(WireAead) + FileStartFixedSize) {
         return false;
     }
 
-    WireAeadHeader aead{};
-    std::memcpy(&aead, packet.payload, sizeof(aead));
-    const uint8_t *cipherText = packet.payload + sizeof(aead);
-    const size_t cipherLen = packet.payloadLength - sizeof(aead);
-
-    uint8_t ad[HeaderSize];
-    writeHeader(packet.header, ad);
+    const auto *aead = reinterpret_cast<const WireAead *>(packet.payload);
+    const size_t cipherLen = packet.payloadLength - sizeof(WireAead);
+    const WireHeader ad = wireFromDecoded(packet.header, Magic, Version);
 
     WireFileStart plain{};
-    if (!Crypto::decryptFromContact(peer, {aead.nonce, ad, HeaderSize},
-                                    cipherText, cipherLen, aead.mac,
+    if (!Crypto::decryptFromContact(peer, {aead->nonce, reinterpret_cast<const uint8_t *>(&ad), sizeof(ad)},
+                                    aead->cipherText, cipherLen, aead->mac,
                                     reinterpret_cast<uint8_t *>(&plain))) {
         return false;
     }
 
     outInfo = FileStartInfo{};
-    std::memcpy(outInfo.fileKey, plain.fileKey, FileKeySize);
+    copyBytes(outInfo.fileKey, plain.fileKey);
     outInfo.fileSize = plain.fileSize;
     const size_t nameLen = (plain.nameLength > MaxFilenameSize) ? MaxFilenameSize : plain.nameLength;
     std::memcpy(outInfo.filename, plain.filename, nameLen);
@@ -344,14 +373,13 @@ bool Packet::decodeFileStart(const PeerSession &peer,
 
 bool Packet::decodeFileData(const DecodedPacket &packet, FileChunkView &outChunk)
 {
-    if (packet.payloadLength < sizeof(WireFileDataHeader)) {
+    if (packet.payloadLength < sizeof(WireFileData)) {
         return false;
     }
-    WireFileDataHeader dataHeader{};
-    std::memcpy(&dataHeader, packet.payload, sizeof(dataHeader));
-    outChunk.chunkIndex = dataHeader.chunkIndex;
-    outChunk.data = packet.payload + sizeof(dataHeader);
-    outChunk.length = packet.payloadLength - sizeof(dataHeader);
+    const auto *data = reinterpret_cast<const WireFileData *>(packet.payload);
+    outChunk.chunkIndex = data->chunkIndex;
+    outChunk.data = data->data;
+    outChunk.length = packet.payloadLength - sizeof(WireFileData);
     return true;
 }
 
@@ -364,54 +392,6 @@ bool Packet::isForDevice(const DecodedPacket &packet, const uint8_t deviceId[Dev
 {
     return isBroadcast(packet.header.recipientDeviceId) ||
            std::memcmp(packet.header.recipientDeviceId, deviceId, DeviceIdSize) == 0;
-}
-
-PacketHeader Packet::makeHeader(PacketType type,
-                                const PacketRoute &route,
-                                uint8_t payloadLength)
-{
-    PacketHeader header{};
-    header.type = type;
-    std::memcpy(header.senderDeviceId, route.senderDeviceId, DeviceIdSize);
-    std::memcpy(header.recipientDeviceId, route.recipientDeviceId, DeviceIdSize);
-    header.sequence = route.sequence;
-    header.payloadLength = payloadLength;
-    return header;
-}
-
-void Packet::writeHeader(const PacketHeader &header, uint8_t *out)
-{
-    WireHeader wire{};
-    wire.magic = Magic;
-    wire.version = Version;
-    wire.type = static_cast<uint8_t>(header.type);
-    std::memcpy(wire.senderDeviceId, header.senderDeviceId, DeviceIdSize);
-    std::memcpy(wire.recipientDeviceId, header.recipientDeviceId, DeviceIdSize);
-    wire.sequence = header.sequence;
-    wire.payloadLength = header.payloadLength;
-    std::memcpy(out, &wire, sizeof(wire));
-}
-
-bool Packet::readHeader(const uint8_t *data, size_t size, PacketHeader &header)
-{
-    if (size < HeaderSize) {
-        return false;
-    }
-    WireHeader wire{};
-    std::memcpy(&wire, data, sizeof(wire));
-    if (wire.magic != Magic || wire.version != Version) {
-        return false;
-    }
-    if (wire.type < static_cast<uint8_t>(PacketType::InviteBroadcast) ||
-        wire.type > static_cast<uint8_t>(PacketType::FileExchangeCancel)) {
-        return false;
-    }
-    header.type = static_cast<PacketType>(wire.type);
-    std::memcpy(header.senderDeviceId, wire.senderDeviceId, DeviceIdSize);
-    std::memcpy(header.recipientDeviceId, wire.recipientDeviceId, DeviceIdSize);
-    header.sequence = wire.sequence;
-    header.payloadLength = wire.payloadLength;
-    return true;
 }
 
 } // namespace lora

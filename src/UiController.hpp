@@ -69,27 +69,15 @@ public:
 private:
     static constexpr size_t InputMax = lora::MaxPlainTextSize;
     static constexpr size_t VisibleHistoryRows = 6;
+    static constexpr size_t VisibleContacts = 4;
+    static constexpr size_t WrapColumnWidth = 36;
+    static constexpr int ProgressBarWidth = 20;
 
     enum class Page {
         Chat,
         Contacts,
         Invite,
         Identity,
-    };
-
-    enum class FocusAction {
-        None,
-        Send,
-        OpenContacts,
-        OpenInvite,
-        OpenIdentity,
-        SelectContact,
-        NextContact,
-        BackToChat,
-        BroadcastInvite,
-        AcceptInvite,
-        SetNickname,
-        ProvisionSeed,
     };
 
     void setPage(Page page);
@@ -108,13 +96,12 @@ private:
                         const RadioSession &radio,
                         const FileTransfer &fileTransfer,
                         UiCommand &outCommand);
-    bool activateFocusAction(FocusAction action,
-                             const RadioSession &radio,
-                             UiCommand &outCommand);
+    bool activateFocused(const RadioSession &radio, UiCommand &outCommand);
     bool parseSlashCommand(UiCommand &outCommand);
-
-    FocusAction actionForFocusedComponent() const;
-    size_t focusIndexForAction(FocusAction action);
+    bool emitTextCommand(UiCommand::Type type,
+                         const char *source,
+                         bool clear,
+                         UiCommand &outCommand);
     static void formatFingerprint(const uint8_t fingerprint[lora::FingerprintSize],
                                   char *out,
                                   size_t outSize);

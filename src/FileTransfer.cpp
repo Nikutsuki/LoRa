@@ -8,6 +8,16 @@
 #include "RadioSession.hpp"
 #include "pico/time.h"
 
+namespace {
+
+struct __attribute__((packed)) FileKeySeed {
+    uint8_t deviceId[lora::DeviceIdSize];
+    uint64_t timestamp;
+    uint32_t sequence;
+};
+
+} // namespace
+
 FileTransfer::FileTransfer(RadioSession &radioSession, proto::LinkSession &linkSession, NoticeSink notice)
     : radioSession_(radioSession),
       linkSession_(linkSession),
@@ -101,14 +111,11 @@ void FileTransfer::cancel(bool notifyPeer)
         }
     }
 
-    role_ = Role::None;
+    resetState();
     fileSize_ = 0;
     bytesTransferred_ = 0;
     awaitingTxAck_ = false;
-    std::memset(currentFileKey_, 0, sizeof(currentFileKey_));
-
     linkSession_.sendFileExchangeCancel();
-    dirty_ = true;
     notice_.emit("File transfer cancelled", ui::Tone::Danger);
 }
 
@@ -117,6 +124,13 @@ bool FileTransfer::consumeDirty()
     const bool wasDirty = dirty_;
     dirty_ = false;
     return wasDirty;
+}
+
+void FileTransfer::resetState()
+{
+    role_ = Role::None;
+    std::memset(currentFileKey_, 0, sizeof(currentFileKey_));
+    dirty_ = true;
 }
 
 void FileTransfer::startOutgoing(const proto::FileExchangeStartMessage &msg)
@@ -128,22 +142,20 @@ void FileTransfer::startOutgoing(const proto::FileExchangeStartMessage &msg)
         return;
     }
 
-    std::strncpy(filename_, msg.filename, sizeof(filename_) - 1);
-    filename_[sizeof(filename_) - 1] = '\0';
+    std::snprintf(filename_, sizeof(filename_), "%s", msg.filename);
     fileSize_ = msg.fileSize;
     bytesTransferred_ = 0;
 
-    uint8_t seedMaterial[40]{};
-    std::memcpy(seedMaterial, radioSession_.identity().deviceId, lora::DeviceIdSize);
-    const uint64_t now = to_us_since_boot(get_absolute_time());
-    std::memcpy(seedMaterial + 8, &now, sizeof(now));
     const uint32_t seq = radioSession_.nextSequence();
-    std::memcpy(seedMaterial + 16, &seq, sizeof(seq));
-    lora::Crypto::hash32(currentFileKey_, seedMaterial, sizeof(seedMaterial));
+    FileKeySeed seed{};
+    std::memcpy(seed.deviceId, radioSession_.identity().deviceId, lora::DeviceIdSize);
+    seed.timestamp = to_us_since_boot(get_absolute_time());
+    seed.sequence = seq;
+    lora::Crypto::hash32(currentFileKey_, reinterpret_cast<const uint8_t *>(&seed), sizeof(seed));
 
     lora::FileStartInfo info{};
-    std::memcpy(info.fileKey, currentFileKey_, 32);
-    std::strncpy(info.filename, filename_, sizeof(info.filename) - 1);
+    std::memcpy(info.fileKey, currentFileKey_, sizeof(info.fileKey));
+    std::snprintf(info.filename, sizeof(info.filename), "%s", filename_);
     info.fileSize = fileSize_;
 
     lora::PacketBuffer packet;
@@ -173,7 +185,7 @@ void FileTransfer::sendChunk(const proto::FileExchangeDataMessage &msg)
         return;
     }
 
-    uint8_t encryptedChunk[256];
+    uint8_t encryptedChunk[lora::MaxPacketSize];
     if (msg.length > sizeof(encryptedChunk)) {
         linkSession_.sendExchangeAck(msg.chunkIndex, 2);
         return;
@@ -230,9 +242,7 @@ void FileTransfer::finishOutgoing()
         return;
     }
 
-    role_ = Role::None;
-    std::memset(currentFileKey_, 0, sizeof(currentFileKey_));
-    dirty_ = true;
+    resetState();
     notice_.emit("File transfer complete", ui::Tone::Success);
 }
 
@@ -251,8 +261,7 @@ void FileTransfer::handleIncomingStart(const lora::DecodedPacket &packet)
 
     std::memcpy(currentFileKey_, info.fileKey, sizeof(currentFileKey_));
     linkSession_.sendFileExchangeStart(info.filename, info.fileSize);
-    std::strncpy(filename_, info.filename, sizeof(filename_) - 1);
-    filename_[sizeof(filename_) - 1] = '\0';
+    std::snprintf(filename_, sizeof(filename_), "%s", info.filename);
     fileSize_ = info.fileSize;
     bytesTransferred_ = 0;
     role_ = Role::Receiving;
@@ -267,7 +276,7 @@ void FileTransfer::handleIncomingData(const lora::DecodedPacket &packet)
         return;
     }
 
-    uint8_t decryptedChunk[256];
+    uint8_t decryptedChunk[lora::MaxPacketSize];
     if (chunk.length <= sizeof(decryptedChunk)) {
         lora::Crypto::decryptFileChunk(currentFileKey_, chunk.chunkIndex,
                                        chunk.data, decryptedChunk, chunk.length);
@@ -282,8 +291,6 @@ void FileTransfer::handleIncomingData(const lora::DecodedPacket &packet)
 void FileTransfer::handleIncomingEnd()
 {
     linkSession_.sendFileExchangeEnd();
-    role_ = Role::None;
-    std::memset(currentFileKey_, 0, sizeof(currentFileKey_));
-    dirty_ = true;
+    resetState();
     notice_.emit("File received (100%)", ui::Tone::Success);
 }

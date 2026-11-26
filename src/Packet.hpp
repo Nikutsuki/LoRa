@@ -48,12 +48,6 @@ public:
 private:
     static constexpr uint32_t Magic = 0x3148314c; // "LCL1"
     static constexpr uint8_t Version = 1;
-
-    static PacketHeader makeHeader(PacketType type,
-                                   const PacketRoute &route,
-                                   uint8_t payloadLength);
-    static void writeHeader(const PacketHeader &header, uint8_t *out);
-    static bool readHeader(const uint8_t *data, size_t size, PacketHeader &header);
 };
 
 } // namespace lora

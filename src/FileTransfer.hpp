@@ -37,6 +37,7 @@ public:
     uint32_t bytesTransferred() const { return bytesTransferred_; }
 
 private:
+    void resetState();
     void startOutgoing(const proto::FileExchangeStartMessage &msg);
     void sendChunk(const proto::FileExchangeDataMessage &msg);
     void finishOutgoing();
