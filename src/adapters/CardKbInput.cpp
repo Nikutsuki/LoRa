@@ -66,7 +66,7 @@ ui::KeyEvent CardKbInput::decode(uint8_t key)
         return event;
     case 0x1d:
     case 0x81:
-    case 0xb6:
+    case 0xb7:
         event.key = ui::Key::Right;
         return event;
     case 0x1e:
@@ -76,7 +76,7 @@ ui::KeyEvent CardKbInput::decode(uint8_t key)
         return event;
     case 0x1f:
     case 0x83:
-    case 0xb7:
+    case 0xb6:
         event.key = ui::Key::Down;
         return event;
     case '\r':

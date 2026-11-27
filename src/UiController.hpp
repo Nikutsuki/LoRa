@@ -125,6 +125,8 @@ private:
     char input_[InputMax]{};
     char commandText_[InputMax]{};
     size_t inputLength_ = 0;
+    size_t chatScrollOffset_ = 0;
+    size_t maxChatScroll_ = 0;
 
     char notice_[64]{};
     char headerText_[48]{};

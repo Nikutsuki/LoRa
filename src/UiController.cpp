@@ -6,59 +6,68 @@
 #include "FileTransfer.hpp"
 #include "RadioSession.hpp"
 
-namespace {
-
-template <size_t N>
-void copyText(char (&dst)[N], const char *src)
+namespace
 {
-    std::snprintf(dst, N, "%s", (src != nullptr) ? src : "");
-}
 
-size_t wrapText(const char *text, char segs[][40], size_t maxSegs, size_t maxLen)
-{
-    if (text == nullptr || segs == nullptr || maxSegs == 0 || maxLen == 0) {
-        return 0;
+    template <size_t N>
+    void copyText(char (&dst)[N], const char *src)
+    {
+        std::snprintf(dst, N, "%s", (src != nullptr) ? src : "");
     }
 
-    size_t segCount = 0;
-    const char *start = text;
+    size_t wrapText(const char *text, char segs[][40], size_t maxSegs, size_t maxLen)
+    {
+        if (text == nullptr || segs == nullptr || maxSegs == 0 || maxLen == 0)
+        {
+            return 0;
+        }
 
-    while (*start != '\0' && segCount < maxSegs) {
-        if (segCount > 0) {
-            while (*start == ' ') {
-                start++;
+        size_t segCount = 0;
+        const char *start = text;
+
+        while (*start != '\0' && segCount < maxSegs)
+        {
+            if (segCount > 0)
+            {
+                while (*start == ' ')
+                {
+                    start++;
+                }
+                if (*start == '\0')
+                {
+                    break;
+                }
             }
-            if (*start == '\0') {
+
+            const size_t len = std::strlen(start);
+            if (len <= maxLen)
+            {
+                std::strncpy(segs[segCount], start, sizeof(segs[segCount]) - 1);
+                segs[segCount][sizeof(segs[segCount]) - 1] = '\0';
+                segCount++;
                 break;
             }
-        }
 
-        const size_t len = std::strlen(start);
-        if (len <= maxLen) {
-            std::strncpy(segs[segCount], start, sizeof(segs[segCount]) - 1);
-            segs[segCount][sizeof(segs[segCount]) - 1] = '\0';
+            size_t breakPos = maxLen;
+            while (breakPos > 0 && start[breakPos] != ' ')
+            {
+                breakPos--;
+            }
+            if (breakPos == 0)
+            {
+                breakPos = maxLen;
+            }
+
+            const size_t copyLen = breakPos < sizeof(segs[segCount]) ? breakPos : sizeof(segs[segCount]) - 1;
+            std::memcpy(segs[segCount], start, copyLen);
+            segs[segCount][copyLen] = '\0';
             segCount++;
-            break;
+
+            start += breakPos;
         }
 
-        size_t breakPos = maxLen;
-        while (breakPos > 0 && start[breakPos] != ' ') {
-            breakPos--;
-        }
-        if (breakPos == 0) {
-            breakPos = maxLen;
-        }
-
-        const size_t copyLen = breakPos < sizeof(segs[segCount]) ? breakPos : sizeof(segs[segCount]) - 1;
-        std::memcpy(segs[segCount], start, copyLen);
-        segs[segCount][copyLen] = '\0';
-        segCount++;
-
-        start += breakPos;
+        return segCount;
     }
-
-    return segCount;
-}
 
 } // namespace
 
@@ -76,11 +85,14 @@ UiController::UiController(Ili9341Display &display,
 
 void UiController::init(bool hasCardKb)
 {
-    if (hasCardKb) {
+    if (hasCardKb)
+    {
         screen_ = &lcdScreen_;
         keySource_ = &cardKbInput_;
         setNotice("CardKB connected", ui::Tone::Success);
-    } else {
+    }
+    else
+    {
         screen_ = &uartScreen_;
         keySource_ = &uartInput_;
     }
@@ -107,7 +119,8 @@ void UiController::requestUartResync()
 
 void UiController::setNotice(const char *message, ui::Tone tone)
 {
-    if (message == nullptr) {
+    if (message == nullptr)
+    {
         return;
     }
     copyText(notice_, message);
@@ -121,13 +134,16 @@ bool UiController::pollInput(const RadioSession &radio,
                              UiCommand &outCommand)
 {
     outCommand = UiCommand{};
-    if (keySource_ == nullptr) {
+    if (keySource_ == nullptr)
+    {
         return false;
     }
 
     ui::KeyEvent event;
-    while (keySource_->poll(event)) {
-        if (handleKeyEvent(event, radio, fileTransfer, outCommand)) {
+    while (keySource_->poll(event))
+    {
+        if (handleKeyEvent(event, radio, fileTransfer, outCommand))
+        {
             return true;
         }
     }
@@ -137,13 +153,15 @@ bool UiController::pollInput(const RadioSession &radio,
 void UiController::render(const RadioSession &radio, const FileTransfer &fileTransfer)
 {
     const bool fileActive = fileTransfer.isActive();
-    if (fileActive != filePopupWasActive_) {
+    if (fileActive != filePopupWasActive_)
+    {
         filePopupWasActive_ = fileActive;
         fullRedraw_ = true;
         uiDirty_ = true;
     }
 
-    if (!uiDirty_ || screen_ == nullptr) {
+    if (!uiDirty_ || screen_ == nullptr)
+    {
         return;
     }
 
@@ -156,20 +174,24 @@ void UiController::render(const RadioSession &radio, const FileTransfer &fileTra
     // Skip identical frames so radio events that do not change visible widgets
     // do not cause the SPI LCD to flicker.
     const bool localContentChanged = fullRedraw_ || !lastModel_.sameContent(model);
-    if (localContentChanged) {
+    if (localContentChanged)
+    {
         screen_->present(model);
     }
 
-    if (screen_ != &uartScreen_ && session_.hostSeen() && (localContentChanged || uartResyncNeeded_)) {
+    if (screen_ != &uartScreen_ && session_.hostSeen() && (localContentChanged || uartResyncNeeded_))
+    {
         ui::ScreenModel hostModel = model;
-        if (uartResyncNeeded_) {
+        if (uartResyncNeeded_)
+        {
             hostModel.setFullRedraw(true);
         }
         uartScreen_.present(hostModel);
         uartResyncNeeded_ = false;
     }
 
-    if (!uartScreen_.lastFrameSent()) {
+    if (!uartScreen_.lastFrameSent())
+    {
         proto::NoticeMessage overflow;
         overflow.level = proto::NoticeLevel::Danger;
         overflow.text = "screen frame too large";
@@ -185,8 +207,10 @@ void UiController::setPage(Page page)
 {
     page_ = page;
     const ui::Component *initialFocus = &inputBox_;
-    if (page == Page::Contacts) initialFocus = &selectButton_;
-    else if (page == Page::Invite) initialFocus = &broadcastButton_;
+    if (page == Page::Contacts)
+        initialFocus = &selectButton_;
+    else if (page == Page::Invite)
+        initialFocus = &broadcastButton_;
     uiPage_.focusComponent(initialFocus);
     requestFullRedraw();
 }
@@ -202,12 +226,14 @@ void UiController::preparePage(const RadioSession &radio, const FileTransfer &fi
 {
     prepareCommon(radio);
 
-    if (fileTransfer.isActive()) {
+    if (fileTransfer.isActive())
+    {
         prepareFilePopup(fileTransfer);
         return;
     }
 
-    switch (page_) {
+    switch (page_)
+    {
     case Page::Chat:
         prepareChatPage(radio);
         break;
@@ -256,10 +282,13 @@ void UiController::prepareChatPage(const RadioSession &radio)
 {
     copyText(pageTitle_, "Messages");
     const lora::Contact *contact = radio.selectedContact();
-    if (contact == nullptr) {
+    if (contact == nullptr)
+    {
         copyText(contactLine_, "No contact selected");
         copyText(contactMeta_, "Use Invite to pair a device");
-    } else {
+    }
+    else
+    {
         char fingerprint[20];
         formatFingerprint(contact->fingerprint, fingerprint, sizeof(fingerprint));
         std::snprintf(contactLine_, sizeof(contactLine_), "%s", contact->nickname);
@@ -305,13 +334,17 @@ void UiController::prepareContactsPage(const RadioSession &radio)
 
     const size_t selectedIdx = radio.selectedContactIndex();
     const size_t firstVisible = selectedIdx >= VisibleContacts ? selectedIdx - (VisibleContacts - 1) : 0;
-    for (size_t i = 0; i < VisibleContacts; i++) {
+    for (size_t i = 0; i < VisibleContacts; i++)
+    {
         const size_t contactIndex = firstVisible + i;
         const lora::Contact *contact = radio.contacts().contactAt(contactIndex);
-        if (contact == nullptr) {
+        if (contact == nullptr)
+        {
             copyText(contactPrimary_[i], "-");
             contactSecondary_[i][0] = '\0';
-        } else {
+        }
+        else
+        {
             char fingerprint[20];
             formatFingerprint(contact->fingerprint, fingerprint, sizeof(fingerprint));
             copyText(contactPrimary_[i], contact->nickname);
@@ -341,17 +374,22 @@ void UiController::prepareInvitePage(const RadioSession &radio)
     copyText(pageTitle_, "Invite (Password Pair)");
     pageTitleLabel_.setText(pageTitle_);
 
-    if (radio.hasPendingInvite()) {
+    if (radio.hasPendingInvite())
+    {
         char fingerprint[20];
         formatFingerprint(radio.pendingInvite().fingerprint, fingerprint, sizeof(fingerprint));
         std::snprintf(inviteLine_, sizeof(inviteLine_), "Pending: %s", radio.pendingInvite().nickname);
         std::snprintf(inviteMeta_, sizeof(inviteMeta_), "Fingerprint: %s", fingerprint);
         primaryLabel_.setTone(ui::Tone::Focus);
-    } else if (radio.hasPendingEncryptedInvite()) {
+    }
+    else if (radio.hasPendingEncryptedInvite())
+    {
         copyText(inviteLine_, "Pending: [Encrypted Invite]");
         copyText(inviteMeta_, "Enter password below & press Accept");
         primaryLabel_.setTone(ui::Tone::Accent);
-    } else {
+    }
+    else
+    {
         copyText(inviteLine_, "No pending invite");
         copyText(inviteMeta_, "Enter password to broadcast/accept");
         primaryLabel_.setTone(ui::Tone::Muted);
@@ -410,7 +448,8 @@ void UiController::prepareIdentityPage(const RadioSession &radio)
 
 void UiController::rebuildHistoryRows(const RadioSession &radio)
 {
-    struct VisualLine {
+    struct VisualLine
+    {
         char text[80]{};
         ui::Tone tone = ui::Tone::Muted;
         uint16_t statusColor = 0;
@@ -419,31 +458,43 @@ void UiController::rebuildHistoryRows(const RadioSession &radio)
     VisualLine lines[VisibleHistoryRows]{};
     int currentVisualRow = static_cast<int>(VisibleHistoryRows) - 1;
 
+    size_t linesToSkip = chatScrollOffset_;
+    size_t totalVisualLines = 0;
+
     const lora::ChatHistory &history = radio.history();
     const size_t total = history.count();
 
-    for (size_t i = 0; i < total && currentVisualRow >= 0; i++) {
+    for (size_t i = 0; i < total; i++)
+    {
         const size_t entryIndex = total - 1 - i;
         const lora::ChatEntry &entry = history.at(entryIndex);
 
         char fullText[160];
-        if (entry.direction == lora::ChatEntry::Direction::Outgoing) {
-            std::snprintf(fullText, sizeof(fullText), "%s", entry.text);
-        } else {
+        if (entry.RSSI == 0 && entry.SNR == 0)
+        {
+            std::snprintf(fullText, sizeof(fullText), "%s [%s]", entry.text, "waiting for RSSI and SNR");
+        }
+        else
+        {
             std::snprintf(fullText, sizeof(fullText), "%s [RSSI: %0.1fdBm, SNR: %0.1fdB]",
                           entry.text, entry.RSSI, entry.SNR);
         }
 
         ui::Tone tone = ui::Tone::Muted;
-        if (entry.direction == lora::ChatEntry::Direction::Outgoing) {
+        if (entry.direction == lora::ChatEntry::Direction::Outgoing)
+        {
             tone = ui::Tone::Success;
-        } else if (entry.direction == lora::ChatEntry::Direction::Incoming) {
+        }
+        else if (entry.direction == lora::ChatEntry::Direction::Incoming)
+        {
             tone = ui::Tone::Default;
         }
 
         uint16_t statusColor = 0;
-        if (entry.direction == lora::ChatEntry::Direction::Outgoing) {
-            switch (entry.status) {
+        if (entry.direction == lora::ChatEntry::Direction::Outgoing)
+        {
+            switch (entry.status)
+            {
             case lora::ChatEntry::Status::Sending:
                 statusColor = Ili9341Display::Yellow;
                 break;
@@ -461,8 +512,16 @@ void UiController::rebuildHistoryRows(const RadioSession &radio)
         char segs[MaxWrappedLines][40]{};
         const size_t segCount = wrapText(fullText, segs, MaxWrappedLines, WrapColumnWidth);
 
+        totalVisualLines += segCount;
+
         // Fill visual lines from bottom to top so the newest message stays anchored at the bottom.
-        for (int s = static_cast<int>(segCount) - 1; s >= 0 && currentVisualRow >= 0; s--) {
+        for (int s = static_cast<int>(segCount) - 1; s >= 0 && currentVisualRow >= 0; s--)
+        {
+            if (linesToSkip > 0)
+            {
+                linesToSkip--;
+                continue;
+            }
             copyText(lines[currentVisualRow].text, segs[s]);
             lines[currentVisualRow].tone = tone;
             lines[currentVisualRow].statusColor = (s == static_cast<int>(segCount) - 1) ? statusColor : 0;
@@ -470,25 +529,30 @@ void UiController::rebuildHistoryRows(const RadioSession &radio)
         }
     }
 
-    for (size_t i = 0; i < VisibleHistoryRows; i++) {
+    for (size_t i = 0; i < VisibleHistoryRows; i++)
+    {
         copyText(historyRows_[i], lines[i].text);
         historyLabels_[i].setTone(lines[i].tone);
         historyLabels_[i].setText(historyRows_[i]);
         historyLabels_[i].setStatusColor(lines[i].statusColor);
     }
+
+    maxChatScroll_ = (totalVisualLines > VisibleHistoryRows) ? (totalVisualLines - VisibleHistoryRows) : 0;
 }
 
 void UiController::updateFileProgress(uint32_t current, uint32_t total)
 {
     int percent = (total > 0) ? static_cast<int>((current * 100ULL) / total) : 0;
-    if (percent > 100) {
+    if (percent > 100)
+    {
         percent = 100;
     }
 
     char bar[ProgressBarWidth + 4]{};
     bar[0] = '[';
     const int filled = (percent * ProgressBarWidth) / 100;
-    for (int i = 0; i < ProgressBarWidth; i++) {
+    for (int i = 0; i < ProgressBarWidth; i++)
+    {
         bar[1 + i] = (i < filled) ? '=' : ' ';
     }
     bar[ProgressBarWidth + 1] = ']';
@@ -506,12 +570,15 @@ bool UiController::handleKeyEvent(ui::KeyEvent event,
                                   const FileTransfer &fileTransfer,
                                   UiCommand &outCommand)
 {
-    if (event.key == ui::Key::None) {
+    if (event.key == ui::Key::None)
+    {
         return false;
     }
 
-    if (fileTransfer.isActive()) {
-        if (event.key == ui::Key::Enter) {
+    if (fileTransfer.isActive())
+    {
+        if (event.key == ui::Key::Enter)
+        {
             outCommand.type = UiCommand::Type::CancelFileTransfer;
             return true;
         }
@@ -520,8 +587,10 @@ bool UiController::handleKeyEvent(ui::KeyEvent event,
 
     const bool textPage = (page_ == Page::Chat || page_ == Page::Identity || page_ == Page::Invite);
 
-    if (event.key == ui::Key::Character) {
-        if (textPage && inputLength_ < InputMax - 1) {
+    if (event.key == ui::Key::Character)
+    {
+        if (textPage && inputLength_ < InputMax - 1)
+        {
             input_[inputLength_++] = event.character;
             input_[inputLength_] = '\0';
             invalidate();
@@ -529,20 +598,25 @@ bool UiController::handleKeyEvent(ui::KeyEvent event,
         return false;
     }
 
-    if (event.key == ui::Key::Backspace) {
-        if (textPage && inputLength_ > 0) {
+    if (event.key == ui::Key::Backspace)
+    {
+        if (textPage && inputLength_ > 0)
+        {
             input_[--inputLength_] = '\0';
             invalidate();
         }
         return false;
     }
 
-    if (event.key == ui::Key::Enter) {
-        if (page_ == Page::Contacts && uiPage_.focusedIndex() >= 1 && uiPage_.focusedIndex() <= 4) {
+    if (event.key == ui::Key::Enter)
+    {
+        if (page_ == Page::Contacts && uiPage_.focusedIndex() >= 1 && uiPage_.focusedIndex() <= 4)
+        {
             const size_t selectedIdx = radio.selectedContactIndex();
             const size_t firstVisible = selectedIdx >= 4 ? selectedIdx - 3 : 0;
             const size_t chosen = firstVisible + uiPage_.focusedIndex() - 1;
-            if (chosen < radio.contacts().contactCount()) {
+            if (chosen < radio.contacts().contactCount())
+            {
                 outCommand.type = UiCommand::Type::SelectContact;
                 outCommand.contactIndex = chosen;
                 setPage(Page::Chat);
@@ -550,6 +624,28 @@ bool UiController::handleKeyEvent(ui::KeyEvent event,
             }
         }
         return activateFocused(radio, outCommand);
+    }
+
+    if (page_ == Page::Chat && uiPage_.focusedComponent() == &inputBox_)
+    {
+        if (event.key == ui::Key::Up)
+        {
+            if (chatScrollOffset_ < maxChatScroll_)
+            {
+                chatScrollOffset_++;
+                invalidate();
+            }
+            return false;
+        }
+        if (event.key == ui::Key::Down)
+        {
+            if (chatScrollOffset_ > 0)
+            {
+                chatScrollOffset_--;
+                invalidate();
+                return false;
+            }
+        }
     }
 
     uiPage_.handle(event);
@@ -560,54 +656,69 @@ bool UiController::handleKeyEvent(ui::KeyEvent event,
 bool UiController::activateFocused(const RadioSession &radio, UiCommand &outCommand)
 {
     const ui::Component *focused = uiPage_.focusedComponent();
-    if (focused == nullptr) {
+    if (focused == nullptr)
+    {
         return false;
     }
 
-    if (focused == &backButton_ || focused == &selectButton_) {
+    if (focused == &backButton_ || focused == &selectButton_)
+    {
         setPage(Page::Chat);
         return false;
     }
-    if (focused == &contactsButton_) {
+    if (focused == &contactsButton_)
+    {
         setPage(Page::Contacts);
         return false;
     }
-    if (focused == &inviteButton_) {
+    if (focused == &inviteButton_)
+    {
         setPage(Page::Invite);
         return false;
     }
-    if (focused == &identityButton_) {
+    if (focused == &identityButton_)
+    {
         setPage(Page::Identity);
         return false;
     }
-    if (focused == &nextButton_) {
+    if (focused == &nextButton_)
+    {
         outCommand.type = UiCommand::Type::NextContact;
         return true;
     }
-    if (focused == &broadcastButton_) {
+    if (focused == &broadcastButton_)
+    {
         return emitTextCommand(UiCommand::Type::SendInvite, input_, false, outCommand);
     }
-    if (focused == &acceptButton_) {
+    if (focused == &acceptButton_)
+    {
         return emitTextCommand(UiCommand::Type::AcceptInvite, input_, true, outCommand);
     }
-    if (focused == &setNickButton_) {
+    if (focused == &setNickButton_)
+    {
         return emitTextCommand(UiCommand::Type::SetNickname, input_, true, outCommand);
     }
-    if (focused == &seedButton_) {
+    if (focused == &seedButton_)
+    {
         return emitTextCommand(UiCommand::Type::ProvisionSeed, input_, true, outCommand);
     }
 
-    if (page_ == Page::Contacts) {
-        for (const auto &item : contactItems_) {
-            if (focused == &item) {
+    if (page_ == Page::Contacts)
+    {
+        for (const auto &item : contactItems_)
+        {
+            if (focused == &item)
+            {
                 setPage(Page::Chat);
                 return false;
             }
         }
     }
 
-    if (page_ == Page::Chat && (focused == &inputBox_ || focused == &sendButton_)) {
-        if (inputLength_ == 0 || radio.radio().isBusy()) {
+    if (page_ == Page::Chat && (focused == &inputBox_ || focused == &sendButton_))
+    {
+        if (inputLength_ == 0 || radio.radio().isBusy())
+        {
             return false;
         }
         return emitTextCommand(UiCommand::Type::SendText, input_, true, outCommand);
@@ -622,7 +733,8 @@ bool UiController::emitTextCommand(UiCommand::Type type,
                                    UiCommand &outCommand)
 {
     copyText(commandText_, source);
-    if (clear) {
+    if (clear)
+    {
         clearInput();
     }
     outCommand.type = type;
@@ -634,12 +746,14 @@ void UiController::formatFingerprint(const uint8_t fingerprint[lora::Fingerprint
                                      char *out,
                                      size_t outSize)
 {
-    if (outSize == 0) {
+    if (outSize == 0)
+    {
         return;
     }
     static constexpr char hex[] = "0123456789ABCDEF";
     size_t pos = 0;
-    for (size_t i = 0; i < lora::FingerprintSize && pos + 2 < outSize; i++) {
+    for (size_t i = 0; i < lora::FingerprintSize && pos + 2 < outSize; i++)
+    {
         out[pos++] = hex[fingerprint[i] >> 4];
         out[pos++] = hex[fingerprint[i] & 0x0f];
     }

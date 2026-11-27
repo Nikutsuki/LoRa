@@ -300,8 +300,13 @@ void RadioSession::handleReceivedPacket(FileTransfer *fileTransfer)
 
 void RadioSession::handleAckPacket(const lora::DecodedPacket &packet)
 {
-    if (awaitingAck_ && packet.header.sequence == awaitingAckSeq_) {
-        history_.at(awaitingAckIndex_).status = lora::ChatEntry::Status::Delivered;
+    float rssi = 0.0;
+    float snr = 0.0;
+    if (awaitingAck_ && packet.header.sequence == awaitingAckSeq_ && lora::Packet::decodeAck(packet, rssi, snr)) {
+        lora::ChatEntry &message =  history_.at(awaitingAckIndex_);
+        message.status = lora::ChatEntry::Status::Delivered;
+        message.RSSI = rssi;
+        message.SNR = snr;
         notice_.emit("Message acknowledged", ui::Tone::Success);
 
         awaitingAck_ = false;
@@ -368,19 +373,20 @@ void RadioSession::handleChatPacket(const lora::DecodedPacket &packet)
         return;
     }
 
-    history_.addIncoming(contact->nickname, message,
-                         static_cast<float>(radio_.lastRssi()),
-                         static_cast<float>(radio_.lastSnr()));
-    sendAck(contact->deviceId, packet.header.sequence);
+    float lastRssi = static_cast<float>(radio_.lastRssi());
+    float lastSnr = static_cast<float>(radio_.lastSnr());
+
+    history_.addIncoming(contact->nickname, message, lastRssi, lastSnr);
+    sendAck(contact->deviceId, packet.header.sequence, lastRssi, lastSnr);
     dirty_ = true;
     notice_.emit("Encrypted message received", ui::Tone::Success);
 }
 
-void RadioSession::sendAck(const uint8_t recipientDeviceId[lora::DeviceIdSize], uint32_t sequence)
+void RadioSession::sendAck(const uint8_t recipientDeviceId[lora::DeviceIdSize], uint32_t sequence, float rssi, float snr)
 {
     lora::PacketBuffer packet;
     const auto route = lora::PacketRoute::toDevice(contacts_.identity().deviceId, recipientDeviceId, sequence);
-    if (!lora::Packet::encodeControl(lora::PacketType::MessageAck, route, packet)) {
+    if (!lora::Packet::encodeAck(lora::PacketType::MessageAck, route, packet, rssi, snr)) {
         notice_.emit("Ack encode failed", ui::Tone::Danger);
         return;
     }

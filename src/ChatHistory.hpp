@@ -36,7 +36,7 @@ struct ChatEntry {
  */
 class ChatHistory {
 public:
-    static constexpr size_t Capacity = 12;
+    static constexpr size_t Capacity = 128;
     static constexpr size_t TextSize = sizeof(ChatEntry::text);
 
     size_t addIncoming(const char *sender, const char *text, float RSSI, float SNR);

@@ -57,7 +57,7 @@ private:
     void handleAckPacket(const lora::DecodedPacket &packet);
     void handleInvitePacket(const lora::DecodedPacket &packet);
     void handleChatPacket(const lora::DecodedPacket &packet);
-    void sendAck(const uint8_t recipientDeviceId[lora::DeviceIdSize], uint32_t sequence);
+    void sendAck(const uint8_t recipientDeviceId[lora::DeviceIdSize], uint32_t sequence, float rssi, float snr);
     bool parseHexSeed(const char *hexSeed, uint8_t out[32]) const;
 
     lora::Radio radio_;
