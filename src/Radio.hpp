@@ -31,7 +31,7 @@ public:
     int8_t lastSnr() const { return lastSnr_; }
 
 private:
-    static constexpr uint32_t Frequency = 433920000;
+    static constexpr uint32_t Frequency = 434'400'000;
 
     
     // Transmit power in dBm.
@@ -49,13 +49,13 @@ private:
      * being roughly 8x quicker, which makes the failure mode far easier to
      * observe.
      */
-    static constexpr uint32_t SpreadingFactor = 9;
+    static constexpr uint32_t SpreadingFactor = 10;
 
-    static constexpr uint8_t CodingRate = 1;
+    static constexpr uint8_t CodingRate = 2;
     static constexpr uint16_t PreambleLength = 8;
     static constexpr bool FixLengthPayload = false;
     static constexpr bool IqInversion = false;
-    static constexpr uint32_t TxTimeoutValue = 3000;
+    static constexpr uint32_t TxTimeoutValue = 5000;
 
     static void onTxDone();
     static void onTxTimeout();

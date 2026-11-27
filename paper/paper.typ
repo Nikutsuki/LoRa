@@ -346,9 +346,9 @@ Najważniejszą częścią doboru stosu technologicznego w systemach wbudowanych
 
 === Generowanie kluczy oraz tożsamości urządzenia
 
-Każde urządzenie identyfikowane jest na podstawie 8-bajtowego identyfikatora (`deviceId`) który pochodzi z fabrycznego identyfikatora pamięci Flash, oraz na podstawie kryptograficznej tożsamości urządzenia (`DeviceIdentity`) która wyprowadzana jest z ziarna 256-bitowego (`seed`). W celu łatwiejszem pracy nad prototypem przy pierwszym uruchomieniu generuje on tymczasowe ziarno przy użyciu *BLAKE2b* z tekstu `"dev"` identyfikatora urządzenia oraz licznika czasu. Użytkownik może je zastąpić własnym 256-bitowym ziarnem co powoduje ustalenie nowej tożsamości urządzenia oraz wyczyszczenie listy kontaktów.
+Każde urządzenie identyfikowane jest na podstawie 8-bajtowego identyfikatora (`deviceId`) który pochodzi z fabrycznego identyfikatora pamięci Flash, oraz na podstawie kryptograficznej tożsamości urządzenia (`DeviceIdentity`) która wyprowadzana jest z ziarna 256-bitowego (`seed`). W celu łatwiejszej pracy nad prototypem przy pierwszym uruchomieniu generuje on tymczasowe ziarno przy użyciu *BLAKE2b* z tekstu `"dev"` identyfikatora urządzenia oraz licznika czasu. Użytkownik może je zastąpić własnym 256-bitowym ziarnem co powoduje ustalenie nowej tożsamości urządzenia oraz wyczyszczenie listy kontaktów.
 
-\ Użycie tego samego sekretu w wielu algorytmach może prowadzić do kompromitacji danych, dlatego zastosowano separację domenową (_domain separation_). Przy użyciu głównego ziarna `seed` i jawnych etykiet `"sign"` i `"box"` funkcja skrótu *BLAKE2b* wyprowadza dwa 32-bajtowe klucze. Jeden z nich używany jest w generatorze pary kluczy podpisu *Ed25519* która używana jest w procesie uwierzytelniania protokołu parowania). Drugi z nich to klucz prywatny używany w algorytmie uzgadniania kluczy *X25519*, na którego podstawie wyliczany jest 32-bajtowy klucz publiczny. 
+\ Użycie tego samego sekretu w wielu algorytmach może prowadzić do kompromitacji danych, dlatego zastosowano separację domenową (_domain separation_). Przy użyciu głównego ziarna `seed` i jawnych etykiet `"sign"` i `"box"` funkcja skrótu *BLAKE2b* wyprowadza dwa 32-bajtowe klucze. Jeden z nich używany jest w generatorze pary kluczy podpisu *Ed25519* która używana jest w procesie uwierzytelniania protokołu parowania. Drugi z nich to klucz prywatny używany w algorytmie uzgadniania kluczy *X25519*, na którego podstawie wyliczany jest 32-bajtowy klucz publiczny. 
 
 \ Ważnym elementem tożsamości jest również 8-bajtowy odcisk (_fingerprint_) który wyliczany jest przy użyciu skrótu *BLAKE2b* na podstawie `deviceId` oraz obu kluczy publicznych, który jest widoczny w interfejsie graficznym, i pozwala użytkownikom na weryfikację tożsamości w modelu TOFU. Po zakończeniu generacji tożsamości bufory oraz stos są bezpiecznie czyszczone funkcją `crypto_wipe`, a tożsamość urządzenia jak i suma kontrolna CRC-32 zapisywane są w pamięci Flash urządzenia. Cały proces przedstawia następujący schemat:
 
@@ -359,10 +359,16 @@ Każde urządzenie identyfikowane jest na podstawie 8-bajtowego identyfikatora (
 
 === Generowanie klucza sesyjnego i szyfrowanie wiadomości
 
+Bezpieczeństwo komunikacji pomiędzy dwoma sparowanymi urządzeniami zapewnia wykorzystanie 256-bitowego symetrycznego klucza sesyjnego, który wyliczany jest przy pomocy algorytmu *X25519* na podstawie własnego klucza prywatnego i klucza publicznego odbiorcy, który został zapisany w trakcie parowania urządzeń. Otrzymany sekret nie jest jednak wykorzystywany do szyfrowania, jest on natomiast użyty jako część wejścia do funkcji skrótu *BLAKE2b*, razem z kluczami publicznymi obu użytkowników posortowanych leksykograficznie. Zapewnia to silną entropię klucza, wiąże klucz z tożsamościami obu stron, oraz sprawia że kierunek transmisji nie ma wpływu na klucz sesyjny. Po zakończeniu szyfrowania i deszyfrowania wszystkie bufory kryptograficzne wykorzystane w tym procesie są bezpiecznie czyszczone za pomocą `crypto_wipe`.
+
 #figure(
   image("images/diagram2.svg"),
   caption: [Schemat wyprowadzenia symetrycznego klucza sesyjnego]
 )
+
+\ Faktyczne szyfrowanie wiadomości odbywa się za pomocą algorytmu AEAD *XChaCha20-Poly1305* (`crypto_aead_lock`). Algorytm ten nie wymaga wektora inicjalizującego o wysokiej entropii, ściśle wymaga jednak jego unikalności, z tego powodu jest on budowany deterministycznie, 24-bajtowy _nonce_ składa się z identyfikatora nadawcy (`SenderID`, 8 B), następnie identyfikatora odbiorcy (`RecipientID`, 8 B), a na końcu z 32-bitowego indeksu wiadomości (`Sequence`, 4 B) i 4 bajtów zerowych. Zawarcie obu adresów rozróżnia kierunki transmisji, nawet jeśli indeks wiadomości się powtórzy, co eliminuje ryzyko kolizji.
+
+\ Pakiet `EncryptedMessage` składa się z nagłówka `LCL1` (27 B), nazwy urządzenia (16 B), odcisku urządzenia (8 B), wektora inicjalizacji (24 B), znacznika MAC *Poly1305* (16 B), oraz zaszyfrowanej wiadomości (1-96 B). Pierwsze 75 bajtów pakietu stanowi AAD (_Additional Authenticated Data_), czyli uwierzytelnione dane dodatkowe które nie podlegają szyfrowaniu ponieważ są niezbędne do poprawnej transmisji oraz odbioru pakietu (zawierają identyfikator nadawcy oraz _nonce_), ale za to są brane pod uwagę przy liczeniu tagu MAC. Dzięki AEAD z AAD otrzymujemy komunikację chronioną przed manipulacją bitami (_bit-flipping_), podmianą niezaszyfrowanych metadanych w nagłówku, fałszowaniem wiadomości (_spoofing_), oraz uszkodzeniami pakietu wynikającymi z zakłóceń sygnału lub szumu tła, które nie zostały wykryte przez CRC modułu LoRa.
 
 #import "@preview/bytefield:0.0.9": *
 
@@ -387,26 +393,13 @@ Każde urządzenie identyfikowane jest na podstawie 8-bajtowego identyfikatora (
   caption: [Schemat pakietu *EncryptedMessage*]
 )
 
-// AI NOTE
-
-  MAC i AAD chronią przed 4 konkretnymi zagrożeniami:
-
-  1. Manipulacja treścią (bit-flipping):
-  Sam szyfr strumieniowy (XChaCha20) bez MAC nie wykrywa zmian — atakujący mógłby odwrócić wybrane bity w szyfrogramie (np. zamienić znane fragmenty tekstu), a odbiorca by to odszyfrował. MAC odrzuca pakiet
-  przy zmianie choćby jednego bitu.
-  2. Fałszowanie wiadomości (spoofing):
-  Bez znajomości klucza sesji nikt nie potrafi wyliczyć poprawnego 16-bajtowego tagu Poly1305, więc nie podszyje się pod nadawcę.
-  3. Podmiana jawnych metadanych (to robi AAD):
-  Ponieważ MAC obejmuje również 75 B jawnego AAD, atakujący nie może w locie zmienić np. SenderID, RecipientID, Sequence, Nickname ani Fingerprint w nagłówku ramki — każda taka zmiana unieważnia tag MAC.
-  4. Niewykryte błędy transmisji radiowej:
-  Gdyby w silnie zaszumionym kanale LoRa sprzętowe CRC-16 przepuściło uszkodzony pakiet, 128-bitowy MAC gwarantuje odrzucenie uszkodzonych danych.
-
-  (Warto wiedzieć na obronę: sam MAC + AAD nie chroni przed atakiem powtórzeniowym (Replay Attack) — czyli nagraniem poprawnego pakietu i wysłaniem go drugi raz — do tego służy sprawdzanie monotoniczności
-  licznika sequence po stronie odbiorcy).
-
-// AI NOTE
-
 == Protokół parowania urządzeń
+
+Aby nawiązać szyfrowaną komunikację najpierw wymagana jest wymiana kluczy publicznych dwóch urządzeń. Z powodu braku centralnego serwera który zarządzałby dystrybucją kluczy, zaimplementowany został dwukrokowy protokół parowania, składa się on z pakietów `InviteBroadcast` i `InviteAccept`. Zaproszenie (`WireInvite`, 144 B) składa się z nazwy użytkownika (16 B), klucza publicznego podpisu *Ed25519* (32 B), klucza publicznego wymiany *X25519* (32 B), oraz 64-bajtowego podpisu cyfrowego *Ed25519*. Podpis wyliczany jest na podstawie typu pakietu, identyfikatora urządzenia `deviceId`, nazwy urządzenia, i obu kluczy publicznych nadawcy, dzięki czemu otrzymujemy integralność danych w trakcie transmisji.
+
+\ Protokół może działać w dwóch trybach pracy, otwartym lub chronionym wspólnym hasłem (PSK). W trybie otwartym `WireInvite` przesyłany jest jawnie, bez szyfrowania, a potwierdzenie tożsamości odbywa się poprzez weryfikację przez użytkownika 16-znakowego odcisku tożsamości urządzenia (_fingerprint_) który wyświetlany jest po odbiorze zaproszenia w interfejsie użytkownika. W trybie szyfrowania hasłem, z ciągu znaków podanego w interfejsie użytkownika wyprowadzany jest za pomocą *Argon2id* 256-bitowy klucz (bufor 16 KB, 2 przebiegi, 1 wątek). Cały ładunek `WireInvite` jest następnie zaszyfrowany za pomocą algorytmu *XChaCha20-Poly1305*, co przez dodanie 24-bajtowego wektora inicjalizującego i 16-bajtowego tagu MAC, zwiększa rozmiar ładunku do 184 B (cała ramka ma rozmiar 211 B). AAD obejmuje `WireHeader` (27 B) co chroni zaproszenie przed atakami typu manipulacji nagłówkiem (_header tampering_).
+
+\ Parowanie zaczyna się od wysłania przez inicjatora (Urządzenie A) pakietu typu `InviteBroadcast` na adres `0xFF..FF`. Następnie urządzenie B (Odbiorca) odbiera ramkę, i w przypadku zaproszenia jawnego weryfikuje podpis *Ed25519*, jeśli zaproszenie jest zaszyfrowane hasłem to urządzenie przechowuje ramkę w pamięci oraz czeka na wprowadzenie i zatwierdzenie hasła (niepoprawne hasło odrzuca pakiet poprzez weryfikację *Poly1305*). Jeśli hasło jest poprawne to pakiet jest deszyfrowany, a system sprawdza czy kontakt nie koliduje z wcześniej zapisanym kontaktem, o innym kluczu publicznym, co chroni przed atakiem typu _spoofing_ (podszywanie się pod znanego rozmówcę). Po akceptacji przez użytkownika, urządzenie odbiorcy zapisuje kontakt do pamięci Flash (`ContactStore`), i wysyła do urządzenia A podpisany pakiet `InviteAccept` (w trybie jawnym pakiet nie jest szyfrowany, a w trybie szyfrowanym chroniony jest tym samym hasłem). Po odebraniu i weryfikacji pakietu, urządzenie A zapisuje kontakt w pamięci Flash, a parowanie kończy się sukcesem.
 
 #figure(
   image("images/diagram3.svg"),
@@ -415,12 +408,24 @@ Każde urządzenie identyfikowane jest na podstawie 8-bajtowego identyfikatora (
 
 == Protokół wymiany wiadomości oraz ACK
 
+Sparowane urządzenia mogą wymieniać między sobą zaszyfrowane wiadomości tekstowe, o maksymalnej długości 96 bajtów (`MaxPlainTextSize`). Po zatwierdzeniu wiadomości w interfejsie użytkownika, warstwa sesji radia (`RadioSession`) sprawdza czy wybrany jest kontakt, oraz czy moduł radiowy LoRa nie jest w trakcie transmisji, po czym wywołuje `Packet::encodeMessage`. Jeśli ramka zostanie poprawnie przyjęta przez sterownik układu SX1262, to wiadomość zapisywana jest w lokalnej historii chatu (`ChatHistory`), a jej status ustawiany jest na `Sending`, równocześnie w tle uruchamiany jest licznik czasu oczekiwania na potwierdzenie odebrania wiadomości ACK (`AckTimeoutMs = 3000 ms`), powiązany z indeksem sekwencyjnym `sequence`.
+
+\ Odbiorca nasłuchuje na łączu i w przypadku wykrycia ramki jest ona wstępnie walidowana w `Packet::decode` (sprawdzenie znacznika magic `LCL1`, wersji protokołu, oraz długości zadeklarowanego ładunku z faktycznym jego stanem), a następnie jest filtrowana na bazie adresu (`Packet::isForDevice`), urządzenie odrzuca ramki pochodzące z własnego `deviceId`. Jeśli pakiet jest typu `EncryptedMessage` to program wyszukuje nadawcę pakietu w bazie zapisanych kontaktów `ContactStore`, odrzucając tym samym ramki do których nie mamy zapisanego kontaktu, następnie weryfikuje zgodność odcisku tożsamości i wykonuje deszyfrację AEAD. Jeśli wiadomość została poprawnie uwierzytelniona trafia ona do historii chatu, wraz z odczytanymi parametrami transmisji (`RSSI` i `SNR`).
+
+\ Po odszyfrowaniu pakietu i zapisaniu wiadomości w historii, odbiorca wysyła wiadomość zwrotną w postaci `MessageAck` (35 B: 27-bajtowy nagłówek `WireHeader` i 8-bajtowy ładunek `WireAck` który zawiera wartości `RSSI` oraz `SNR`). Nadawca odbiera pakiet `MessageAck`, sprawdza czy pasuje on do oczekiwanego numeru `awaitingAckSeq_`, zmienia status wysłanej wiadomości na `Delivered`, oraz uzupełnia zwrócone przez odbiorcę wartości `RSSI` i `SNR`. Jeśli pakiet `MessageAck` nie pojawi się w limicie czasu 3000 ms, program oznacza wiadomość jako `Failed`, i wyświetla w interfejsie użytkownika komunikat o przekroczeniu czasu oczekiwania na odpowiedź. 
+
 #figure(
   image("images/diagram4.svg"),
   caption: [Schemat protokołu wymiany wiadomości]
 )
 
 == Algorytm transferu plików
+
+RP2040 nie posiada wbudowanego systemu plików, z tego względu transfer plików odbywa się we współpracy aplikacji desktopowej z urządzeniem. Urządzenie pełni rolę nadawczą oraz szyfrującą, podczas gdy komputer dostarcza faktyczne dane do przesłania. W momencie w którym użytkownik wybierze plik który chce przesłać w interfejsie aplikacji desktopowej, do urządzenia wysyłany jest komunikat `FileExchangeStart`, który posiada nazwę pliku (do 64 B), oraz jego rozmiar. Moduł `FileTransfer` generuje jednorazowy, 256-bitowy klucz pliku (`currentFileKey_`) za pomocą funkcji skrótu *BLAKE2b* który na wejściu otrzymuje identyfikator urządzenia `deviceId`, czas od uruchomienia urządzenia, oraz indeks sekwencyjny wiadomości. Wygenerowany klucz wraz z metadanymi pliku jest szyfrowany za pomocą algorytmu AEAD *XChaCha20-Poly1305* przy użyciu wcześniej wygenerowanego klucza sesyjnego kontaktu, a następnie tak zaszyfrowany fragment nadawany jest w pakiecie `FileExchangeStart`.
+
+\ Aplikacja desktopowa dzieli wybrany plik na fragmenty o rozmiarze 128 bajtów. Każdy z nich jest szyfrowany na mikrokontrolerze przy pomocy algorytmu *ChaCha20-IETF* przy użyciu jednorazowego klucza pliku i 12-bajtowego wektora inicjalizującego wyprowadzonego na podstawie 32-bitowego indeksu fragmentu (`chunkIndex`) uzupełnionego zerami. Tak zaszyfrowany fragment trafia do pakietu typu `FileExchangeData` (159 B jeśli fragment ma 128 bajtów), dzięki czemu bezpiecznie mieści się w 255-bajtowym limicie pakietów LoRa. W przeciwieństwie do szyfrowanych E2EE wiadomości tekstowych, pojedyncze pakiety zawierające fragmenty pliku nie przenoszą 16-bajtowego tagu MAC, i nie korzystają z potwierdzeń otrzymania (ACK), dzięki czemu transmisja trwa krócej, i skraca czas zajęcia kanału (_Time on Air_).
+
+\ W celu mitygacji przepełnienia buforów urządzenia przez magistralę USB, zastosowano mechanizm kontrolowania przepływu (_flow control_). Oznacza to że kolejny fragment pliku czeka `awaitingTxAck_` dopóki układ SX1262 wyśle poprzedni fragment `TxDone`. Dopiero po tym mikrokontroler informuje komputer o tym że potrzebuje kolejny fragment, poprzez wysłanie ramki `FileExchangeAck`. Po wysłaniu wszystkich fragmentów nadawca wysyła pakiet typu `FileExchangeEnd`, sygnalizując koniec transmisji pliku. W każdej chwili transferu obie ze stron mogą go również anulować, poprzez ramkę `FileExchangeCancel`, czyszcząc tym samym stan transferu i klucz sesji.
 
 #figure(
   image("images/diagram5.png"),
@@ -491,7 +496,7 @@ Każde urządzenie identyfikowane jest na podstawie 8-bajtowego identyfikatora (
           • parowanie otwarte oraz z poprawnym/błędnym hasłem (Wrong password!),
           • próba podszycia się pod istniejący nick (Nickname impersonation rejected),
           • wiadomość od nieznanego nadawcy (Encrypted msg from unknown),
-          • brak potwierdzenia ACK po 1500 ms (przejście wiadomości w Failed),
+          • brak potwierdzenia ACK po 3000 ms (przejście wiadomości w Failed),
           • anulowanie transferu pliku w trakcie (FileExchangeCancel),
           • trwałość tożsamości i listy kontaktów po resecie zasilania (ContactStore we Flashu + CRC32).
 
