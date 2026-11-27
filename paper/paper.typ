@@ -346,6 +346,12 @@ Najważniejszą częścią doboru stosu technologicznego w systemach wbudowanych
 
 === Generowanie kluczy oraz tożsamości urządzenia
 
+Każde urządzenie identyfikowane jest na podstawie 8-bajtowego identyfikatora (`deviceId`) który pochodzi z fabrycznego identyfikatora pamięci Flash, oraz na podstawie kryptograficznej tożsamości urządzenia (`DeviceIdentity`) która wyprowadzana jest z ziarna 256-bitowego (`seed`). W celu łatwiejszem pracy nad prototypem przy pierwszym uruchomieniu generuje on tymczasowe ziarno przy użyciu *BLAKE2b* z tekstu `"dev"` identyfikatora urządzenia oraz licznika czasu. Użytkownik może je zastąpić własnym 256-bitowym ziarnem co powoduje ustalenie nowej tożsamości urządzenia oraz wyczyszczenie listy kontaktów.
+
+\ Użycie tego samego sekretu w wielu algorytmach może prowadzić do kompromitacji danych, dlatego zastosowano separację domenową (_domain separation_). Przy użyciu głównego ziarna `seed` i jawnych etykiet `"sign"` i `"box"` funkcja skrótu *BLAKE2b* wyprowadza dwa 32-bajtowe klucze. Jeden z nich używany jest w generatorze pary kluczy podpisu *Ed25519* która używana jest w procesie uwierzytelniania protokołu parowania). Drugi z nich to klucz prywatny używany w algorytmie uzgadniania kluczy *X25519*, na którego podstawie wyliczany jest 32-bajtowy klucz publiczny. 
+
+\ Ważnym elementem tożsamości jest również 8-bajtowy odcisk (_fingerprint_) który wyliczany jest przy użyciu skrótu *BLAKE2b* na podstawie `deviceId` oraz obu kluczy publicznych, który jest widoczny w interfejsie graficznym, i pozwala użytkownikom na weryfikację tożsamości w modelu TOFU. Po zakończeniu generacji tożsamości bufory oraz stos są bezpiecznie czyszczone funkcją `crypto_wipe`, a tożsamość urządzenia jak i suma kontrolna CRC-32 zapisywane są w pamięci Flash urządzenia. Cały proces przedstawia następujący schemat:
+
 #figure(
   image("images/diagram1.svg"),
   caption: [Schemat wyprowadzenia kluczy urządzenia (Ed25519 i X25519) oraz odcisku tożsamości (BLAKE2b)]

@@ -104,7 +104,7 @@ void Crypto::hash32(uint8_t out[FileKeySize], const uint8_t *data, size_t size)
 void Crypto::deriveDevelopmentSeed(uint8_t out[FileKeySize], const uint8_t deviceId[DeviceIdSize])
 {
     DevSeedMaterial material{};
-    static constexpr char Tag[] = "DEV-ONLY-IDENTITY";
+    static constexpr char Tag[] = "dev";
     std::memcpy(material.tag, Tag, sizeof(material.tag));
     copyBytes(material.deviceId, deviceId);
     material.timestamp = to_us_since_boot(get_absolute_time());
