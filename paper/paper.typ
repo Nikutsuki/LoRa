@@ -68,7 +68,7 @@ Celem niniejszej pracy jest projekt oraz implementacja autonomicznego przenośne
 
 Aby zrealizować ten cel zdefiniowano następujący zakres pracy:
 + Przegląd literatury na temat technologii LoRa oraz bezpiecznej komunikacji w systemach wbudowanych.
-+ Projekt i budowa prototypu urządzenia (mikrokontroler RP2040, moduł radiowy, wyświetlacz LCD, klawiatura)  oraz schemat połączeń.
++ Projekt i budowa prototypu urządzenia (mikrokontroler RP2040, moduł radiowy, wyświetlacz LCD, klawiatura) oraz schemat połączeń.
 + Opracowanie protokołu transmisji oraz komunikacji z mechanizmami szyfrowania End-to-End.
 + Implementacja firmware'u urządzenia, realizującego obsługę modułu LoRa, sterowników peryferiów, interfejsu użytkownika oraz pamięci trwałej.
 + Implementacja oprogramowania na komputer do komunikacji z urządzeniem.
@@ -162,7 +162,7 @@ $ "Link Budget" = P_"TX" + G_"TX" + G_"RX" - L_"loss" - S_"RX" $
 
 === Regulacje prawne w Europie: pasma EU433 i EU868
 
-Zasady użytkowania pasm ISM (_Industrial, Scientific, Medical_) i SRD (ang. _Short Range Devices_) w Europie reguluje norma ETSI EN 300 220 @etsi_300_220_2 zalecenie CEPT ERC/REC 70-03. W Polsce tymi normami zajmuje się Ministerstwo Cyfryzacji, poprzez "rozporządzenie Ministra Cyfryzacji w sprawie rozszerzonego zakresu urządzeń radiowych nadawczych lub nadawczo-odbiorczych, które mogą być używane bez pozwolenia radiowego. Na podstawie art. 145 ust. 4 ustawy z dnia 12 lipca 2024 r" @bip_uke.
+Zasady użytkowania pasm ISM (_Industrial, Scientific, Medical_) i SRD (ang. _Short Range Devices_) w Europie reguluje norma ETSI EN 300 220 @etsi_300_220_2 zalecenie CEPT ERC/REC 70-03. W Polsce tymi normami zajmuje się Ministerstwo Cyfryzacji, poprzez "rozporządzenie Ministra Cyfryzacji w sprawie rozszerzonego zakresu urządzeń radiowych nadawczych lub nadawczo-odbiorczych, które mogą być używane bez pozwolenia radiowego. Na podstawie art. 145 ust. 4 ustawy z dnia 12 lipca 2024 r." @bip_uke.
 
 \ Pasmo EU433 obejmuje zakres częstotliwości 433.050-434.790 MHz, a pasmo EU868 obejmuje 863-870 MHz, różnią się one maksymalną dopuszczalną mocą transmisji oraz regułami czasu dostępu do widma (cykl pracy i techniki LBT+AFA, Listen Before Talk + Adaptive Frequency Agility, nazwane w normie "polite spectrum access") @etsi_300_220_2[Table B.1, s. 21--22].
 
@@ -215,7 +215,7 @@ Meshtastic jest otwartym projektem typu _mesh_, który wykorzystuje technologię
 
 === Reticulum Network Stack i Disaster Radio
 
-*Reticulum Network Stack (RNS)* to zaprojektowany przez Marka Qvista stos sieciowy skupiający się na kryptografii, działa on w przestrzeni użytkownika (_userland_) i nie wykorzystuje protokołu IP (istnieje jednak możliwość tunelowania ruchu przez TCP/UDP) @reticulum_manual. Kluczową zaletą RNS jest to, że działa na dużej liczby typów łącz. Jeden system automatycznie bez dodatkowej konfiguracji łączy moduły radiowe (LoRa/RNode, VHF/UHF, TNC/KISS), siecią IP poprzez Wi-Fi lub Ethernet, portami szeregowymi, stdio czy I2P, a jednocześnie automatycznie zarządza ruchem i daje priorytet dla komunikacji lokalnej.
+*Reticulum Network Stack (RNS)* to zaprojektowany przez Marka Qvista stos sieciowy skupiający się na kryptografii, działa on w przestrzeni użytkownika (_userland_) i nie wykorzystuje protokołu IP (istnieje jednak możliwość tunelowania ruchu przez TCP/UDP) @reticulum_manual. Kluczową zaletą RNS jest to, że działa na dużej liczbie typów łącz. Jeden system automatycznie bez dodatkowej konfiguracji łączy moduły radiowe (LoRa/RNode, VHF/UHF, TNC/KISS), siecią IP poprzez Wi-Fi lub Ethernet, portami szeregowymi, stdio czy I2P, a jednocześnie automatycznie zarządza ruchem i daje priorytet dla komunikacji lokalnej.
 
 \ Reticulum zamiast prostego floodingu implementuje wieloskokowe trasowanie z wydzielaniem węzłów transportowych (_transport nodes_), które pełnią funkcję rozproszonego magazynu kluczy i ścieżek @reticulum_manual, ważne jest, że nie każdy węzeł w sieci jest węzłem transportowym, ponieważ prowadzi to do degradacji wydajności. Adresowanie działa na podstawie zdecentralizowanych skrótach kluczy publicznych (destinations) a pakiety nie posiadają adresów nadawcy, co zapewnia anonimowość inicjatora. Cały ruch zabezpiecza szyfrowanie _end-to-end_ przy użyciu tymczasowych kluczy X25519. Aby nawiązać w pełni szyfrowaną sesję wymagane są zaledwie 3 pakiety, o łącznym rozmiarze 297 bajtów, a utrzymanie jej potrzebuje tylko 0.44 bps @reticulum_manual. RNS wykorzystuje między innymi:
 - Nomad Network
@@ -305,7 +305,7 @@ Nowoczesne protokoły takie jak TLS 1.3, WireGuard, QUIC, bazują integralność
 
 Nawet bezbłędna implementacja *X25519* oraz *ChaCha20-Poly1305* nie chroni przed atakiem _Man-in-the-middle_ (MITM), przez brak możliwości powiązania klucza publicznego z tożsamością. Rozproszone sieci _off-grid_ z definicji nie mają możliwości użycia centralnego serwera uwierzytelniającego.
 
-\ W rezultacie w niezależnych sieciach _off-grid_ stosuje się model *Trust On First Use (TOFU)* obecny między innymi w protokole SSH lub komunikatorach takich jak Signal. Model TOFU polega na zapisaniu klucza publicznego rozmówcy podczas pierwszego nawiązania połączenia, i od tego momentu domyślnie ufa mu, następnie przy każdej kolejnej interakcji, klucz jest sprawdzany, i w przypadku gdy się nie zgadza, użytkownik otrzymuje komunikat o potencjalnych ataku MITM. Pomimo tego, że model TOFU zapewnia wysoką użyteczność w sieciach zdecentralizowanych, istnieje w nim jedna krytyczna podatność, czyli podmiana klucza w trakcie pierwszej wymiany @sok_secure_messaging_2015.
+\ W rezultacie w niezależnych sieciach _off-grid_ stosuje się model *Trust On First Use (TOFU)* obecny między innymi w protokole SSH lub komunikatorach takich jak Signal. Model TOFU polega na zapisaniu klucza publicznego rozmówcy podczas pierwszego nawiązania połączenia, i od tego momentu domyślnie ufa mu, następnie przy każdej kolejnej interakcji, klucz jest sprawdzany, i w przypadku gdy się nie zgadza, użytkownik otrzymuje komunikat o potencjalnym ataku MITM. Pomimo tego, że model TOFU zapewnia wysoką użyteczność w sieciach zdecentralizowanych, istnieje w nim jedna krytyczna podatność, czyli podmiana klucza w trakcie pierwszej wymiany @sok_secure_messaging_2015.
 
 \ W celu wyeliminowania tej podatności, stosuje się cztery uzupełniające się mechanizmy:
 - *Odciski kluczy (fingerprints)* - skrót klucza publicznego, prezentowany za pomocą znaków lub kodu QR. Porównanie ich poprzez zeskanowanie twarzą w twarz, weryfikuje zaufanie.
@@ -326,7 +326,7 @@ Najważniejszą częścią doboru stosu technologicznego w systemach wbudowanych
 - Częstotliwość w zakresie 410 - 510 MHz
 - Moc w zakresie -9 dBm - +22 dBm 
 
-\ Parametry zostały wybrane tak, aby osiągnąć złoty środek, BW = 125 kHz, aby zachować czułość odbiornika na tanim układzie, SF = 9 w celu przyspieszenia transmisji, kodowanie 4/5 dla podstawowej korekcji błędów, standardową preambułę 8 symboli oraz moc 10 dBm ze względu na normy europejskie. 
+\ Parametry zostały wybrane tak, aby osiągnąć złoty środek, BW = 125 kHz, aby zachować czułość odbiornika na tanim układzie, SF = 10 jako bezpieczny kompromis pomiędzy zasięgiem a czasem transmisji (w porównaniu do SF12), kodowanie 4/6 dla polepszonej korekcji błędów w zaszumionych środowiskach miejskich, standardową preambułę 8 symboli oraz moc 10 dBm ze względu na normy europejskie. 
 
 \ Ze względu na brak sprzętowej akceleracji AES oraz ograniczoną pamięć SRAM, w projekcie zrezygnowano z bibliotek takich jak mbedTLS czy wolfSSL na rzecz lżejszej biblioteki *Monocypher*, napisana jest ona w standardzie C99. Dzięki temu wydajność kryptografii na rdzeniu ARM Cortex-M0+ jest dużo lepsza. Główne zalety *Monocypher* to:
 - Odporność na _side-channel attacks_, wszystkie krytyczne operacje kryptograficzne zaimplementowane są w sposób stałoczasowy (_constant-time_), bez rozgałęzień programu, i indeksowania tablic na podstawie sekretów, co chroni program przed analizą czasową (_timing attacks_).
@@ -391,7 +391,7 @@ Aby nawiązać szyfrowaną komunikację najpierw wymagana jest wymiana kluczy pu
 
 \ Protokół może działać w dwóch trybach pracy, otwartym lub chronionym wspólnym hasłem (PSK). W trybie otwartym `WireInvite` przesyłany jest jawnie, bez szyfrowania, a potwierdzenie tożsamości odbywa się poprzez weryfikację przez użytkownika 16-znakowego odcisku tożsamości urządzenia (_fingerprint_) który wyświetlany jest po odbiorze zaproszenia w interfejsie użytkownika. W trybie szyfrowania hasłem, z ciągu znaków podanego w interfejsie użytkownika wyprowadzany jest za pomocą *Argon2id* 256-bitowy klucz (bufor 16 KB, 2 przebiegi, 1 wątek). Cały ładunek `WireInvite` jest następnie zaszyfrowany za pomocą algorytmu *XChaCha20-Poly1305*, co przez dodanie 24-bajtowego wektora inicjalizującego i 16-bajtowego tagu MAC, zwiększa rozmiar ładunku do 184 B (cała ramka ma rozmiar 211 B). AAD obejmuje `WireHeader` (27 B) co chroni zaproszenie przed atakami typu manipulacji nagłówkiem (_header tampering_).
 
-\ Parowanie zaczyna się od wysłania przez inicjatora (Urządzenie A) pakietu typu `InviteBroadcast` na adres `0xFF..FF`. Następnie urządzenie B (Odbiorca) odbiera ramkę, i w przypadku zaproszenia jawnego weryfikuje podpis *Ed25519*, jeśli zaproszenie jest zaszyfrowane hasłem to urządzenie przechowuje ramkę w pamięci oraz czeka na wprowadzenie i zatwierdzenie hasła (niepoprawne hasło odrzuca pakiet poprzez weryfikację *Poly1305*). Jeśli hasło jest poprawne to pakiet jest deszyfrowany, a system sprawdza czy kontakt nie koliduje z wcześniej zapisanym kontaktem, o innym kluczu publicznym, co chroni przed atakiem typu _spoofing_ (podszywanie się pod znanego rozmówcę). Po akceptacji przez użytkownika, urządzenie odbiorcy zapisuje kontakt do pamięci Flash (`ContactStore`), i wysyła do urządzenia A podpisany pakiet `InviteAccept` (w trybie jawnym pakiet nie jest szyfrowany, a w trybie szyfrowanym chroniony jest tym samym hasłem). Po odebraniu i weryfikacji pakietu, urządzenie A zapisuje kontakt w pamięci Flash, a parowanie kończy się sukcesem.
+\ Parowanie zaczyna się od wysłania przez inicjatora (Urządzenie A) pakietu typu `InviteBroadcast` na adres `0xFF..FF`. Następnie urządzenie B (Odbiorca) odbiera ramkę, i w przypadku zaproszenia jawnego weryfikuje podpis *Ed25519*, jeśli zaproszenie jest zaszyfrowane hasłem to urządzenie przechowuje ramkę w pamięci oraz czeka na wprowadzenie i zatwierdzenie hasła (niepoprawne hasło odrzuca pakiet poprzez weryfikację *Poly1305*). Jeśli hasło jest poprawne to pakiet jest deszyfrowany, a system sprawdza czy kontakt nie koliduje z wcześniej zapisanym kontaktem, o innym kluczu publicznym, co chroni przed atakiem typu _spoofing_ (podszywanie się pod znanego rozmówcę). Po akceptacji przez użytkownika, urządzenie odbiorcy zapisuje kontakt do pamięci Flash (`ContactStore`), i wysyła do urządzenia A podpisany pakiet `InviteAccept` (w trybie jawnym pakiet nie jest szyfrowany, a w trybie szyfrowanym chroniony jest tym samym hasłem). Po odebraniu, weryfikacji pakietu i podaniu hasła przez użytkownika, urządzenie A zapisuje kontakt w pamięci Flash, a parowanie kończy się sukcesem.
 
 #figure(
   image("images/diagram3.svg"),
@@ -446,7 +446,7 @@ Bazą urządzenia jest płytka Waveshare RP2040-LoRa, która posiada dwurdzeniow
 
 Oprogramowanie układu zostało napisane w języku C++ (logika, protokoły, interfejs) a biblioteki zewnętrzne w C (sterowniki układów, kryptografia). Proces budowania wykorzystuje *CMake* z generatorem *Ninja*, *Raspberry Pi Pico SDK 2.1.1*, kompilator *ARM GNU Toolchain* i narzędzie *picotool 2.1.1* do programowania urządzenia przez USB. Konfiguracja wymusza modulację LoRa (`USE_MODEM_LORA`) oraz normę europejską (`REGION_EU433`), a standardowe wejście/wyjście przekierowane jest na interfejs USB CDC (`pico_enable_stdio_usb`).
 
-\ Projekt korzysta z trzech zewnętrznych bibliotek których kod znajduje sie w katalogu `lib/`:
+\ Projekt korzysta z trzech zewnętrznych bibliotek których kod znajduje się w katalogu `lib/`:
 - *font8x8* to lekka czcionka bitmapowa 8x8 pikseli, używana do wyświetlania tekstu na ekranie.
 - *LoRaMac-node* to oficjalna biblioteka Semtech dostarczająca warstwę HAL (_Hardware Abstraction Layer_) oraz sterownik układu SX1262, która obsługuje moduł LoRa poprzez adaptery sprzętowe w `src/board/`.
 - *Monocypher* to biblioteka kryptograficzna rozpowszechniana w stylu _single-header_, która działa stałoczasowo i bez dynamicznej alokacji pamięci.
@@ -509,7 +509,7 @@ Warstwa interfejsu użytkownika została wydzielona od konkretnego sprzętu za p
 
 == Podsumowanie realizacji projektu
 
-Efektem niniejszej pracy jest zaprojektowane, zbudowane i działające, przenośne urządzenie do tekstowej komunikacji oraz przesyłania plików, działające w pełni autonomicznie, bez dostępu do infrastruktury publicznej (_off-grid_) w paśmie 433 MHz. Dzięki wykorzystaniu tanich komponentów takich jak RP2040, moduł LoRa SX1262, wyświetlacz ILI9341 oraz klawiatura CardKB, cały prototyp pojedynczego urządzenia mieści się w budżecie 150 zł.
+Efektem niniejszej pracy jest zaprojektowane, zbudowane i działające przenośne urządzenie do tekstowej komunikacji oraz przesyłania plików, działające w pełni autonomicznie, bez dostępu do infrastruktury publicznej (_off-grid_) w paśmie 433 MHz. Dzięki wykorzystaniu tanich komponentów takich jak RP2040, moduł LoRa SX1262, wyświetlacz ILI9341 oraz klawiatura CardKB, cały prototyp pojedynczego urządzenia mieści się w budżecie 150 zł.
 
 \ Implementacja software'u potwierdziła ogromną przydatność biblioteki *Monocypher* w systemach wbudowanych. Użyte algorytmy z rodziny ARX (*XChaCha20-Poly1305*, *BLAKE2b*) oraz krzywa *Curve25519* (*X25519* i *Ed25519*) zapewniają bezpieczne szyfrowanie _End-to-End_ i uwierzytelnianie metadanych wiadomości których narzut jest pomijalny w porównaniu do czasu trwania transmisji pakietu LoRa (_Time on Air_). Wykorzystanie modelu abstrakcji interfejsu graficznego oraz protokołu USB CDC umożliwia jednoczesną kontrolę urządzenia poprzez wbudowany wyświetlacz oraz klawiaturę, jak i aplikację desktopową z rozszerzoną funkcjonalnością.
 
