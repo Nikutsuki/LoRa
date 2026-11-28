@@ -54,7 +54,7 @@ namespace lora
         static bool isForDevice(const DecodedPacket &packet, const uint8_t deviceId[DeviceIdSize]);
 
     private:
-        static constexpr uint32_t Magic = 0x3148314c; // "LCL1"
+        static constexpr uint32_t Magic = 0x314c434c; // "LCL1"
         static constexpr uint8_t Version = 1;
     };
 

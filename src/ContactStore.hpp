@@ -34,7 +34,7 @@ public:
     void clearContacts();
 
 private:
-    static constexpr uint32_t Magic = 0x4354434c; // "LCTC"
+    static constexpr uint32_t Magic = 0x324c434c; // "LCL2"
     static constexpr uint16_t Version = 1;
 
     StoredImage image_{};
